@@ -1,41 +1,19 @@
 use tracing_core::{Event, Subscriber};
 use tracing_subscriber::{
     fmt::{
-        format::{Compact, Format as OrigFormat, Full, Json, Pretty, Writer},
+        format::{Compact, Format, Full, Json, Pretty, Writer},
         FmtContext, FormatFields,
     },
     registry::LookupSpan,
 };
 
-use crate::_time::{FormatTime, Timer};
+use crate::time::FormatTime;
 
-pub struct Format {
-    pub ansi: bool,
-    pub target: bool,
-    pub level: bool,
-    pub thread_ids: bool,
-    pub thread_names: bool,
-    pub file: bool,
-    pub line_number: bool,
-    pub formatter: Formatter,
-    pub timer: Timer,
-}
-
-pub enum Formatter {
-    Full,
-    Compact,
-    Pretty,
-    Json {
-        flatten_event: bool,
-        current_span: bool,
-        span_list: bool,
-    },
-}
-
+/// Implementor of [`tracing_subscriber::fmt::FormatEvent`], constructed [`From`] [`Format`](crate::Format).
 pub struct FormatEvent(FormatEventInner);
 
-impl From<Format> for FormatEvent {
-    fn from(value: Format) -> Self {
+impl From<crate::Format> for FormatEvent {
+    fn from(value: crate::Format) -> Self {
         Self(value.into())
     }
 }
@@ -55,9 +33,9 @@ where
     }
 }
 
-impl From<Format> for FormatEventInner {
-    fn from(value: Format) -> Self {
-        let Format {
+impl From<crate::Format> for FormatEventInner {
+    fn from(value: crate::Format) -> Self {
+        let crate::Format {
             ansi,
             target,
             level,
@@ -69,12 +47,12 @@ impl From<Format> for FormatEventInner {
             timer,
         } = value;
 
-        let orig = OrigFormat::default().with_timer(FormatTime::from(timer));
+        let orig = Format::default().with_timer(FormatTime::from(timer));
         let this = match formatter {
-            Formatter::Full => Self::Full(orig),
-            Formatter::Compact => Self::Compact(orig.compact()),
-            Formatter::Pretty => Self::Pretty(orig.pretty()),
-            Formatter::Json {
+            crate::Formatter::Full => Self::Full(orig),
+            crate::Formatter::Compact => Self::Compact(orig.compact()),
+            crate::Formatter::Pretty => Self::Pretty(orig.pretty()),
+            crate::Formatter::Json {
                 flatten_event,
                 current_span,
                 span_list,
@@ -108,10 +86,10 @@ impl From<Format> for FormatEventInner {
 }
 
 enum FormatEventInner {
-    Full(OrigFormat<Full, FormatTime>),
-    Compact(OrigFormat<Compact, FormatTime>),
-    Pretty(OrigFormat<Pretty, FormatTime>),
-    Json(OrigFormat<Json, FormatTime>),
+    Full(Format<Full, FormatTime>),
+    Compact(Format<Compact, FormatTime>),
+    Pretty(Format<Pretty, FormatTime>),
+    Json(Format<Json, FormatTime>),
 }
 
 impl<S, N> tracing_subscriber::fmt::FormatEvent<S, N> for FormatEventInner

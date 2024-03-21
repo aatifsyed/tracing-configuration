@@ -5,18 +5,11 @@ use tracing_subscriber::fmt::{
     time::{ChronoLocal, ChronoUtc, SystemTime, Uptime},
 };
 
-pub enum Timer {
-    None,
-    Local(Option<String>),
-    Utc(Option<String>),
-    System,
-    Uptime,
-}
-
+/// Implementor of [`tracing_subscriber::fmt::time::FormatTime`], constructed [`From`] [`Timer`](crate::Timer).
 pub struct FormatTime(FormatTimeInner);
 
-impl From<Timer> for FormatTime {
-    fn from(value: Timer) -> Self {
+impl From<crate::Timer> for FormatTime {
+    fn from(value: crate::Timer) -> Self {
         Self(value.into())
     }
 }
@@ -35,22 +28,22 @@ enum FormatTimeInner {
     Uptime(Uptime),
 }
 
-impl From<Timer> for FormatTimeInner {
-    fn from(value: Timer) -> Self {
+impl From<crate::Timer> for FormatTimeInner {
+    fn from(value: crate::Timer) -> Self {
         match value {
-            Timer::None => Self::None(()),
-            Timer::Local(it) => Self::Local(match it {
+            crate::Timer::None => Self::None(()),
+            crate::Timer::Local(it) => Self::Local(match it {
                 Some(it) if it == "%+" => ChronoLocal::rfc_3339(),
                 None => ChronoLocal::rfc_3339(),
                 Some(it) => ChronoLocal::new(it),
             }),
-            Timer::Utc(it) => Self::Utc(match it {
+            crate::Timer::Utc(it) => Self::Utc(match it {
                 Some(it) if it == "%+" => ChronoUtc::rfc_3339(),
                 None => ChronoUtc::rfc_3339(),
                 Some(it) => ChronoUtc::new(it),
             }),
-            Timer::System => Self::System(SystemTime),
-            Timer::Uptime => Self::Uptime(Uptime::from(Instant::now())),
+            crate::Timer::System => Self::System(SystemTime),
+            crate::Timer::Uptime => Self::Uptime(Uptime::from(Instant::now())),
         }
     }
 }
