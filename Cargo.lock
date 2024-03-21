@@ -527,7 +527,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "tracing-clap"
+name = "tracing-configuration"
 version = "0.1.0"
 dependencies = [
  "clap",
