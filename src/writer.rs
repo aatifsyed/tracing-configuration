@@ -8,7 +8,7 @@ use tracing_appender::{
 /// A thread guard in the case of [`NonBlocking`](crate::NonBlocking) config.
 ///
 /// See [`WorkerGuard`] for more.
-pub struct Guard(GuardInner);
+pub struct Guard(Option<GuardInner>);
 
 /// Implementor of [`tracing_subscriber::fmt::MakeWriter`],
 /// constructed from [`Writer`](crate::Writer) in [`Self::new`].
@@ -27,8 +27,8 @@ pub struct Error {
 }
 
 impl MakeWriter {
-    pub fn new(writer: crate::Writer) -> Result<(Self, Option<Guard>), Error> {
-        MakeWriterInner::new(writer).map(|(l, r)| (Self(l), r.map(Guard)))
+    pub fn new(writer: crate::Writer) -> Result<(Self, Guard), Error> {
+        MakeWriterInner::new(writer).map(|(l, r)| (Self(l), Guard(r)))
     }
 }
 impl<'a> tracing_subscriber::fmt::MakeWriter<'a> for MakeWriter {
@@ -98,10 +98,13 @@ impl MakeWriterInner {
             }
             crate::Writer::Rolling {
                 directory,
-                limit,
-                prefix,
-                suffix,
-                rotation,
+                rolling:
+                    crate::Rolling {
+                        limit,
+                        prefix,
+                        suffix,
+                        rotation,
+                    },
                 non_blocking,
             } => {
                 let mut builder = RollingFileAppender::builder();

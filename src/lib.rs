@@ -4,11 +4,41 @@ pub mod writer;
 
 use std::path::PathBuf;
 
-use tracing_core::LevelFilter;
-use tracing_subscriber::fmt::SubscriberBuilder;
+use writer::Guard;
+
+/// Configuration for a totally dynamic subscriber.
+#[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Default)]
+pub struct Subscriber {
+    pub format: Option<Format>,
+    pub writer: Option<Writer>,
+}
+
+/// A totally dynamically configured subscriber.
+pub type SubscriberBuilder<
+    N = format::FormatFields,
+    E = format::FormatEvent,
+    F = tracing_core::LevelFilter,
+    W = writer::MakeWriter,
+> = tracing_subscriber::fmt::SubscriberBuilder<N, E, F, W>;
+
+impl Subscriber {
+    pub fn builder(self) -> Result<(SubscriberBuilder, Guard), writer::Error> {
+        let Self { format, writer } = self;
+        let writer = writer.unwrap_or_default();
+        let format = format.unwrap_or_default();
+        let (writer, guard) = writer::MakeWriter::new(writer)?;
+        let builder = tracing_subscriber::fmt()
+            .fmt_fields(format::FormatFields::from(
+                format.formatter.clone().unwrap_or_default(),
+            ))
+            .event_format(format::FormatEvent::from(format))
+            .with_writer(writer);
+        Ok((builder, guard))
+    }
+}
 
 /// Config for formatters.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Default)]
+#[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Default)]
 pub struct Format {
     /// See [`tracing_subscriber::fmt::SubscriberBuilder::with_ansi`].
     pub ansi: Option<bool>,
@@ -31,7 +61,7 @@ pub struct Format {
 }
 
 /// The specific output format.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Default)]
+#[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Default)]
 pub enum Formatter {
     /// See [`tracing_subscriber::fmt::format::Full`].
     #[default]
@@ -52,7 +82,7 @@ pub enum Formatter {
 }
 
 /// Which timer implementation to use.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Default)]
+#[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Default)]
 pub enum Timer {
     /// See [`tracing_subscriber::fmt::SubscriberBuilder::without_time`].
     None,
@@ -68,7 +98,7 @@ pub enum Timer {
 }
 
 /// Which writer to use.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Default)]
+#[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Default)]
 pub enum Writer {
     /// No writer.
     Null,
@@ -87,14 +117,7 @@ pub enum Writer {
     /// Use a [`tracing_appender::rolling::RollingFileAppender`].
     Rolling {
         directory: PathBuf,
-        /// See [`tracing_appender::rolling::Builder::max_log_files`].
-        limit: Option<usize>,
-        /// See [`tracing_appender::rolling::Builder::filename_prefix`].
-        prefix: Option<String>,
-        /// See [`tracing_appender::rolling::Builder::filename_suffix`].
-        suffix: Option<String>,
-        /// See [`tracing_appender::rolling::Builder::rotation`].
-        rotation: Rotation,
+        rolling: Rolling,
         /// Wrap the writer in a [`tracing_appender::non_blocking::NonBlocking`].
         non_blocking: Option<NonBlocking>,
     },
@@ -103,53 +126,47 @@ pub enum Writer {
 /// How often to rotate the [`tracing_appender::rolling::RollingFileAppender`].
 ///
 /// See [`tracing_appender::rolling::Rotation`].
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Default)]
 pub enum Rotation {
     Minutely,
     Hourly,
     Daily,
+    #[default]
     Never,
+}
+/// Config for [`tracing_appender::rolling::RollingFileAppender`].
+#[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Default)]
+pub struct Rolling {
+    /// See [`tracing_appender::rolling::Builder::max_log_files`].
+    limit: Option<usize>,
+    /// See [`tracing_appender::rolling::Builder::filename_prefix`].
+    prefix: Option<String>,
+    /// See [`tracing_appender::rolling::Builder::filename_suffix`].
+    suffix: Option<String>,
+    /// See [`tracing_appender::rolling::Builder::rotation`].
+    rotation: Rotation,
 }
 
 /// How the [`tracing_appender::non_blocking::NonBlocking`] should behave on a full queue.
 ///
 /// See [`tracing_appender::non_blocking::NonBlockingBuilder::lossy`].
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum BackpressureBehaviour {
     Drop,
     Block,
 }
 
 /// How to treat a newly created log file in [`Writer::File`].
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum FileOpenBehaviour {
     Truncate,
     Append,
 }
 
 /// Configuration for [`tracing_appender::non_blocking::NonBlocking`].
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Default)]
 pub struct NonBlocking {
     /// See [`tracing_appender::non_blocking::NonBlockingBuilder::buffered_lines_limit`].
     pub buffer_length: Option<usize>,
     pub behaviour: Option<BackpressureBehaviour>,
-}
-
-pub fn new(
-    format: Format,
-    writer: Writer,
-) -> SubscriberBuilder<
-    format::FormatFields,
-    format::FormatEvent,
-    tracing_core::LevelFilter,
-    writer::MakeWriter,
-> {
-    let (writer, guard) = writer::MakeWriter::new(writer).unwrap();
-    tracing_subscriber::fmt()
-        .fmt_fields(format::FormatFields::from(
-            format.formatter.clone().unwrap_or_default(),
-        ))
-        .event_format(format::FormatEvent::from(format))
-        .with_max_level(LevelFilter::TRACE)
-        .with_writer(writer)
 }
