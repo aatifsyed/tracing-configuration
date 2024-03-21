@@ -55,6 +55,13 @@ impl MakeWriter {
         MakeWriterInner::new(writer).map(|(l, r)| (Self(l), r.map(Guard)))
     }
 }
+impl<'a> tracing_subscriber::fmt::MakeWriter<'a> for MakeWriter {
+    type Writer = <MakeWriterInner as tracing_subscriber::fmt::MakeWriter<'a>>::Writer;
+
+    fn make_writer(&'a self) -> Self::Writer {
+        self.0.make_writer()
+    }
+}
 
 impl NonBlocking {
     fn build<T: io::Write + Send + 'static>(
@@ -174,7 +181,7 @@ enum GuardInner {
     NonBlocking(WorkerGuard),
 }
 
-enum MakeWriterInner {
+pub enum MakeWriterInner {
     NonBlocking(tracing_appender::non_blocking::NonBlocking),
     Stdout(io::Stdout),
     Stderr(io::Stderr),

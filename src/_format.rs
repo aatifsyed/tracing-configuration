@@ -7,7 +7,7 @@ use tracing_subscriber::{
     registry::LookupSpan,
 };
 
-use crate::time::{FormatTime, Timer};
+use crate::_time::{FormatTime, Timer};
 
 pub struct Format {
     pub ansi: bool,
