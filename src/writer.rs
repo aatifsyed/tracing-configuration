@@ -117,7 +117,7 @@ impl MakeWriterInner {
                 if let Some(suffix) = suffix {
                     builder = builder.filename_suffix(suffix)
                 }
-                let builder = match rotation {
+                let builder = match rotation.unwrap_or_default() {
                     crate::Rotation::Minutely => {
                         builder.rotation(tracing_appender::rolling::Rotation::MINUTELY)
                     }

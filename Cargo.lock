@@ -334,6 +334,7 @@ dependencies = [
 name = "tracing-configuration"
 version = "0.1.0"
 dependencies = [
+ "serde",
  "thiserror",
  "tracing-appender",
  "tracing-core",

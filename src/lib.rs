@@ -2,14 +2,17 @@ pub mod format;
 pub mod time;
 pub mod writer;
 
+use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
 use writer::Guard;
 
 /// Configuration for a totally dynamic subscriber.
-#[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Default)]
+#[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Default, Serialize, Deserialize)]
 pub struct Subscriber {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub format: Option<Format>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub writer: Option<Writer>,
 }
 
@@ -38,30 +41,40 @@ impl Subscriber {
 }
 
 /// Config for formatters.
-#[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Default)]
+#[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Default, Serialize, Deserialize)]
 pub struct Format {
     /// See [`tracing_subscriber::fmt::SubscriberBuilder::with_ansi`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ansi: Option<bool>,
     /// See [`tracing_subscriber::fmt::SubscriberBuilder::with_target`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub target: Option<bool>,
     /// See [`tracing_subscriber::fmt::SubscriberBuilder::with_level`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub level: Option<bool>,
     /// See [`tracing_subscriber::fmt::SubscriberBuilder::with_thread_ids`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub thread_ids: Option<bool>,
     /// See [`tracing_subscriber::fmt::SubscriberBuilder::with_thread_names`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub thread_names: Option<bool>,
     /// See [`tracing_subscriber::fmt::SubscriberBuilder::with_file`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub file: Option<bool>,
     /// See [`tracing_subscriber::fmt::SubscriberBuilder::with_line_number`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub line_number: Option<bool>,
     /// Specific output formats.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub formatter: Option<Formatter>,
     /// What timing information to include.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub timer: Option<Timer>,
 }
 
 /// The specific output format.
-#[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Default)]
+#[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Default, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum Formatter {
     /// See [`tracing_subscriber::fmt::format::Full`].
     #[default]
@@ -73,23 +86,27 @@ pub enum Formatter {
     /// See [`tracing_subscriber::fmt::format::Json`].
     Json {
         /// See [`tracing_subscriber::fmt::format::Json::flatten_event`].
+        #[serde(default, skip_serializing_if = "Option::is_none")]
         flatten_event: Option<bool>,
         /// See [`tracing_subscriber::fmt::format::Json::with_current_span`].
+        #[serde(default, skip_serializing_if = "Option::is_none")]
         current_span: Option<bool>,
         /// See [`tracing_subscriber::fmt::format::Json::with_span_list`].
+        #[serde(default, skip_serializing_if = "Option::is_none")]
         span_list: Option<bool>,
     },
 }
 
 /// Which timer implementation to use.
-#[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Default)]
+#[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Default, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum Timer {
     /// See [`tracing_subscriber::fmt::SubscriberBuilder::without_time`].
     None,
     /// See [`tracing_subscriber::fmt::time::ChronoLocal`].
-    Local(Option<String>),
+    Local(#[serde(default, skip_serializing_if = "Option::is_none")] Option<String>),
     /// See [`tracing_subscriber::fmt::time::ChronoUtc`].
-    Utc(Option<String>),
+    Utc(#[serde(default, skip_serializing_if = "Option::is_none")] Option<String>),
     /// See [`tracing_subscriber::fmt::time::SystemTime`].
     #[default]
     System,
@@ -98,7 +115,8 @@ pub enum Timer {
 }
 
 /// Which writer to use.
-#[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Default)]
+#[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Default, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum Writer {
     /// No writer.
     Null,
@@ -112,6 +130,7 @@ pub enum Writer {
         path: PathBuf,
         behaviour: FileOpenBehaviour,
         /// Wrap the writer in a [`tracing_appender::non_blocking::NonBlocking`].
+        #[serde(default, skip_serializing_if = "Option::is_none")]
         non_blocking: Option<NonBlocking>,
     },
     /// Use a [`tracing_appender::rolling::RollingFileAppender`].
@@ -119,6 +138,7 @@ pub enum Writer {
         directory: PathBuf,
         rolling: Rolling,
         /// Wrap the writer in a [`tracing_appender::non_blocking::NonBlocking`].
+        #[serde(default, skip_serializing_if = "Option::is_none")]
         non_blocking: Option<NonBlocking>,
     },
 }
@@ -126,7 +146,8 @@ pub enum Writer {
 /// How often to rotate the [`tracing_appender::rolling::RollingFileAppender`].
 ///
 /// See [`tracing_appender::rolling::Rotation`].
-#[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Default)]
+#[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Default, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum Rotation {
     Minutely,
     Hourly,
@@ -135,38 +156,47 @@ pub enum Rotation {
     Never,
 }
 /// Config for [`tracing_appender::rolling::RollingFileAppender`].
-#[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Default)]
+#[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Default, Serialize, Deserialize)]
 pub struct Rolling {
     /// See [`tracing_appender::rolling::Builder::max_log_files`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     limit: Option<usize>,
     /// See [`tracing_appender::rolling::Builder::filename_prefix`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     prefix: Option<String>,
     /// See [`tracing_appender::rolling::Builder::filename_suffix`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     suffix: Option<String>,
     /// See [`tracing_appender::rolling::Builder::rotation`].
-    rotation: Rotation,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    rotation: Option<Rotation>,
 }
 
 /// How the [`tracing_appender::non_blocking::NonBlocking`] should behave on a full queue.
 ///
 /// See [`tracing_appender::non_blocking::NonBlockingBuilder::lossy`].
-#[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum BackpressureBehaviour {
     Drop,
     Block,
 }
 
 /// How to treat a newly created log file in [`Writer::File`].
-#[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum FileOpenBehaviour {
     Truncate,
     Append,
 }
 
 /// Configuration for [`tracing_appender::non_blocking::NonBlocking`].
-#[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Default)]
+#[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Default, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub struct NonBlocking {
     /// See [`tracing_appender::non_blocking::NonBlockingBuilder::buffered_lines_limit`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub buffer_length: Option<usize>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub behaviour: Option<BackpressureBehaviour>,
 }
