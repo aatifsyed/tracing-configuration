@@ -98,15 +98,15 @@ impl MakeWriterInner {
             }
             crate::Writer::Rolling {
                 directory,
-                rolling:
-                    crate::Rolling {
-                        limit,
-                        prefix,
-                        suffix,
-                        rotation,
-                    },
+                rolling,
                 non_blocking,
             } => {
+                let crate::Rolling {
+                    limit,
+                    prefix,
+                    suffix,
+                    rotation,
+                } = rolling.unwrap_or_default();
                 let mut builder = RollingFileAppender::builder();
                 if let Some(limit) = limit {
                     builder = builder.max_log_files(limit)

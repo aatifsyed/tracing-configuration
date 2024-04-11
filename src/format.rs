@@ -80,11 +80,12 @@ impl From<crate::Format> for FormatEventInner {
             crate::Formatter::Full => Self::Full(orig),
             crate::Formatter::Compact => Self::Compact(orig.compact()),
             crate::Formatter::Pretty => Self::Pretty(orig.pretty()),
-            crate::Formatter::Json {
-                flatten_event,
-                current_span,
-                span_list,
-            } => Self::Json({
+            crate::Formatter::Json(it) => Self::Json({
+                let crate::Json {
+                    flatten_event,
+                    current_span,
+                    span_list,
+                } = it.unwrap_or_default();
                 let mut this = orig.json();
                 if let Some(it) = flatten_event {
                     this = this.flatten_event(it)

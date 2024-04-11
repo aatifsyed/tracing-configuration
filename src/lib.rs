@@ -1,3 +1,6 @@
+//! Configuration-as-a-struct for [`tracing_subscriber::fmt::Subscriber`], to allow
+//! for easy, dynamic configuration, at the cost of compile-time specialization.
+
 pub mod format;
 pub mod time;
 pub mod writer;
@@ -14,6 +17,29 @@ pub struct Subscriber {
     pub format: Option<Format>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub writer: Option<Writer>,
+}
+
+#[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Default, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum LevelFilter {
+    Error,
+    Warn,
+    #[default]
+    Info,
+    Debug,
+    Trace,
+}
+
+impl From<LevelFilter> for tracing_core::LevelFilter {
+    fn from(value: LevelFilter) -> Self {
+        match value {
+            LevelFilter::Error => Self::ERROR,
+            LevelFilter::Warn => Self::WARN,
+            LevelFilter::Info => Self::INFO,
+            LevelFilter::Debug => Self::DEBUG,
+            LevelFilter::Trace => Self::TRACE,
+        }
+    }
 }
 
 /// A totally dynamically configured subscriber.
@@ -84,17 +110,20 @@ pub enum Formatter {
     /// See [`tracing_subscriber::fmt::format::Pretty`].
     Pretty,
     /// See [`tracing_subscriber::fmt::format::Json`].
-    Json {
-        /// See [`tracing_subscriber::fmt::format::Json::flatten_event`].
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        flatten_event: Option<bool>,
-        /// See [`tracing_subscriber::fmt::format::Json::with_current_span`].
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        current_span: Option<bool>,
-        /// See [`tracing_subscriber::fmt::format::Json::with_span_list`].
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        span_list: Option<bool>,
-    },
+    Json(Option<Json>),
+}
+
+#[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Default, Serialize, Deserialize)]
+pub struct Json {
+    /// See [`tracing_subscriber::fmt::format::Json::flatten_event`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    flatten_event: Option<bool>,
+    /// See [`tracing_subscriber::fmt::format::Json::with_current_span`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    current_span: Option<bool>,
+    /// See [`tracing_subscriber::fmt::format::Json::with_span_list`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    span_list: Option<bool>,
 }
 
 /// Which timer implementation to use.
@@ -136,7 +165,7 @@ pub enum Writer {
     /// Use a [`tracing_appender::rolling::RollingFileAppender`].
     Rolling {
         directory: PathBuf,
-        rolling: Rolling,
+        rolling: Option<Rolling>,
         /// Wrap the writer in a [`tracing_appender::non_blocking::NonBlocking`].
         #[serde(default, skip_serializing_if = "Option::is_none")]
         non_blocking: Option<NonBlocking>,
