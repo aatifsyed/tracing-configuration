@@ -2,6 +2,10 @@
 name = "tracing-configuration"
 version = "0.1.0"
 edition = "2021"
+description = "fully dynamic configuration for tracing-subscriber"
+license = "Apache-2.0 OR MIT"
+documentation = "https://docs.rs/tracing-configuration"
+repository = "https://github.com/aatifsyed/tracing-configuration"
 
 [dependencies]
 serde = { version = "1.0.197", features = ["derive"] }
