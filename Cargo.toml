@@ -2,7 +2,7 @@
 name = "tracing-configuration"
 version = "0.1.0"
 edition = "2021"
-description = "fully dynamic configuration for tracing-subscriber"
+description = "serializable configuration for a dynamic tracing-subscriber"
 license = "Apache-2.0 OR MIT"
 documentation = "https://docs.rs/tracing-configuration"
 repository = "https://github.com/aatifsyed/tracing-configuration"
@@ -13,6 +13,7 @@ thiserror = "1.0.58"
 tracing-appender = "0.2.3"
 tracing-core = { version = "0.1.32", default-features = false }
 tracing-subscriber = { version = "0.3.18", features = [
+    "std",
     "fmt",
     "chrono",
     "json",

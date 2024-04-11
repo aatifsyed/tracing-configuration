@@ -1,5 +1,5 @@
 //! Configuration-as-a-struct for [`tracing_subscriber::fmt::Subscriber`], to allow
-//! for easy, dynamic configuration, at the cost of compile-time specialization.
+//! for serializable, dynamic configuration, at the cost of compile-time specialization.
 
 pub mod format;
 pub mod time;
@@ -42,7 +42,7 @@ impl From<LevelFilter> for tracing_core::LevelFilter {
     }
 }
 
-/// A totally dynamically configured subscriber.
+/// A totally dynamically configured [`tracing_subscriber::fmt::SubscriberBuilder`].
 pub type SubscriberBuilder<
     N = format::FormatFields,
     E = format::FormatEvent,
@@ -50,17 +50,46 @@ pub type SubscriberBuilder<
     W = writer::MakeWriter,
 > = tracing_subscriber::fmt::SubscriberBuilder<N, E, F, W>;
 
+/// A totally dynamically configured [`tracing_subscriber::fmt::Layer`].
+pub type Layer<S, N = format::FormatFields, E = format::FormatEvent, W = writer::MakeWriter> =
+    tracing_subscriber::fmt::Layer<S, N, E, W>;
+
 impl Subscriber {
-    pub fn builder(self) -> Result<(SubscriberBuilder, Guard), writer::Error> {
+    fn into_components(
+        self,
+    ) -> Result<
+        (
+            writer::MakeWriter,
+            format::FormatFields,
+            format::FormatEvent,
+            Guard,
+        ),
+        writer::Error,
+    > {
         let Self { format, writer } = self;
-        let writer = writer.unwrap_or_default();
         let format = format.unwrap_or_default();
+        let writer = writer.unwrap_or_default();
         let (writer, guard) = writer::MakeWriter::new(writer)?;
+        let fields = format::FormatFields::from(format.formatter.clone().unwrap_or_default());
+        let event = format::FormatEvent::from(format);
+        Ok((writer, fields, event, guard))
+    }
+    pub fn layer<S>(self) -> Result<(Layer<S>, Guard), writer::Error>
+    where
+        S: tracing_core::Subscriber + for<'s> tracing_subscriber::registry::LookupSpan<'s>,
+    {
+        let (writer, fields, event, guard) = self.into_components()?;
+        let layer = tracing_subscriber::fmt::layer()
+            .fmt_fields(fields)
+            .event_format(event)
+            .with_writer(writer);
+        Ok((layer, guard))
+    }
+    pub fn builder(self) -> Result<(SubscriberBuilder, Guard), writer::Error> {
+        let (writer, fields, event, guard) = self.into_components()?;
         let builder = tracing_subscriber::fmt()
-            .fmt_fields(format::FormatFields::from(
-                format.formatter.clone().unwrap_or_default(),
-            ))
-            .event_format(format::FormatEvent::from(format))
+            .fmt_fields(fields)
+            .event_format(event)
             .with_writer(writer);
         Ok((builder, guard))
     }
