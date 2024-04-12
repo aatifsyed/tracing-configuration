@@ -107,6 +107,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "io-extra"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "787c1a0107739b596b41269c3088ab8919c7f1b8929162a49575b83ca13f1003"
+
+[[package]]
 name = "itoa"
 version = "1.0.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -334,6 +340,7 @@ dependencies = [
 name = "tracing-configuration"
 version = "0.1.0"
 dependencies = [
+ "io-extra",
  "serde",
  "thiserror",
  "tracing-appender",

@@ -1,4 +1,4 @@
-use std::{fs::File, io};
+use std::{error::Error as _, fmt, fs::File, io, sync::Arc};
 
 use tracing_appender::{
     non_blocking::{NonBlocking, NonBlockingBuilder, WorkerGuard},
@@ -18,17 +18,36 @@ pub struct MakeWriter(MakeWriterInner);
 pub struct Writer<'a>(WriterInner<'a>);
 
 /// Error that can occur when constructing a writer, including e.g [`File`]-opening errors.
-#[derive(Debug, thiserror::Error)]
-#[error("{}: {}", .context, .source)]
-pub struct Error {
-    context: String,
-    #[source]
-    source: ErrorInner,
+#[derive(Debug)]
+pub struct Error(io::Error);
+
+impl std::error::Error for Error {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        self.0.source()
+    }
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(f)
+    }
 }
 
 impl MakeWriter {
-    pub fn new(writer: crate::Writer) -> Result<(Self, Guard), Error> {
-        MakeWriterInner::new(writer).map(|(l, r)| (Self(l), Guard(r)))
+    /// Create a new [`MakeWriter`], and a [`Guard`] that handles e.g flushing [`NonBlocking`] IO.
+    ///
+    /// Errors when opening files or directories are deferred for the subscriber to handle (typically by logging).
+    /// If you wish to handle them yourself, see [`Self::try_new`].
+    pub fn new(writer: crate::Writer) -> (Self, Guard) {
+        let (this, guard) = MakeWriterInner::new(writer, true).expect("errors have been deferred");
+        (Self(this), Guard(guard))
+    }
+    /// Create a new [`MakeWriter`].
+    ///
+    /// Returns [`Err`] if e.g opening a log file fails.
+    /// If you wish the subscriber to handle them (typically by logging), see [`Self::new`].
+    pub fn try_new(writer: crate::Writer) -> Result<(Self, Guard), Error> {
+        MakeWriterInner::new(writer, false).map(|(l, r)| (Self(l), Guard(r)))
     }
 }
 impl<'a> tracing_subscriber::fmt::MakeWriter<'a> for MakeWriter {
@@ -72,7 +91,7 @@ impl crate::NonBlocking {
 }
 
 impl MakeWriterInner {
-    fn new(writer: crate::Writer) -> Result<(Self, Option<GuardInner>), Error> {
+    fn new(writer: crate::Writer, defer: bool) -> Result<(Self, Option<GuardInner>), Error> {
         match writer {
             crate::Writer::File {
                 path,
@@ -90,10 +109,16 @@ impl MakeWriterInner {
                         }
                         None => Ok((Self::File(it), None)),
                     },
-                    Err(e) => Err(Error {
-                        context: format!("Couldn't open log file {}", path.display()),
-                        source: ErrorInner::Io(e),
-                    }),
+                    Err(e) => {
+                        let e = io_extra::context(
+                            e,
+                            format!("couldn't open log file {}", path.display()),
+                        );
+                        match defer {
+                            true => Ok((Self::Deferred(Arc::new(e)), None)),
+                            false => Err(Error(e)),
+                        }
+                    }
                 }
             }
             crate::Writer::Rolling {
@@ -140,13 +165,24 @@ impl MakeWriterInner {
                         }
                         None => Ok((Self::Rolling(it), None)),
                     },
-                    Err(e) => Err(Error {
-                        context: format!(
-                            "Couldn't start rolling logging in directory {}",
-                            directory.display()
-                        ),
-                        source: ErrorInner::Init(e),
-                    }),
+                    Err(e) => {
+                        let kind = e
+                            .source()
+                            .and_then(|it| it.downcast_ref::<io::Error>())
+                            .map(io::Error::kind)
+                            .unwrap_or(io::ErrorKind::Other);
+                        let e = io_extra::context(
+                            io::Error::new(kind, e),
+                            format!(
+                                "couldn't start logging in directory {}",
+                                directory.display()
+                            ),
+                        );
+                        match defer {
+                            true => Ok((Self::Deferred(Arc::new(e)), None)),
+                            false => Err(Error(e)),
+                        }
+                    }
                 }
             }
             crate::Writer::Stdout => Ok((Self::Stdout(io::stdout()), None)),
@@ -154,13 +190,6 @@ impl MakeWriterInner {
             crate::Writer::Null => Ok((Self::Null(io::sink()), None)),
         }
     }
-}
-
-#[derive(Debug, thiserror::Error)]
-#[error(transparent)]
-enum ErrorInner {
-    Io(io::Error),
-    Init(tracing_appender::rolling::InitError),
 }
 
 enum GuardInner {
@@ -174,6 +203,7 @@ enum MakeWriterInner {
     Stderr(io::Stderr),
     File(File),
     Rolling(RollingFileAppender),
+    Deferred(Arc<io::Error>),
 }
 
 enum WriterInner<'a> {
@@ -183,6 +213,7 @@ enum WriterInner<'a> {
     Stderr(&'a io::Stderr),
     File(&'a File),
     Rolling(RollingWriter<'a>),
+    Deferred(&'a Arc<io::Error>),
 }
 
 impl io::Write for WriterInner<'_> {
@@ -194,6 +225,7 @@ impl io::Write for WriterInner<'_> {
             WriterInner::File(it) => it.write(buf),
             WriterInner::Rolling(it) => it.write(buf),
             WriterInner::Null(it) => it.write(buf),
+            WriterInner::Deferred(e) => Err(io::Error::new(e.kind(), Arc::clone(e))),
         }
     }
 
@@ -205,6 +237,7 @@ impl io::Write for WriterInner<'_> {
             WriterInner::File(it) => it.flush(),
             WriterInner::Rolling(it) => it.flush(),
             WriterInner::Null(it) => it.flush(),
+            WriterInner::Deferred(e) => Err(io::Error::new(e.kind(), Arc::clone(e))),
         }
     }
 }
@@ -220,6 +253,7 @@ impl<'a> tracing_subscriber::fmt::MakeWriter<'a> for MakeWriterInner {
             MakeWriterInner::File(it) => Self::Writer::File(it.make_writer()),
             MakeWriterInner::Rolling(it) => Self::Writer::Rolling(it.make_writer()),
             MakeWriterInner::Null(it) => Self::Writer::Null(it),
+            MakeWriterInner::Deferred(it) => Self::Writer::Deferred(it),
         }
     }
 }

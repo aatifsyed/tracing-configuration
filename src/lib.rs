@@ -57,6 +57,7 @@ pub type Layer<S, N = format::FormatFields, E = format::FormatEvent, W = writer:
 impl Subscriber {
     fn into_components(
         self,
+        defer: bool,
     ) -> Result<
         (
             writer::MakeWriter,
@@ -69,24 +70,66 @@ impl Subscriber {
         let Self { format, writer } = self;
         let format = format.unwrap_or_default();
         let writer = writer.unwrap_or_default();
-        let (writer, guard) = writer::MakeWriter::new(writer)?;
+        let (writer, guard) = match defer {
+            true => writer::MakeWriter::try_new(writer)?,
+            false => writer::MakeWriter::new(writer),
+        };
         let fields = format::FormatFields::from(format.formatter.clone().unwrap_or_default());
         let event = format::FormatEvent::from(format);
         Ok((writer, fields, event, guard))
     }
-    pub fn layer<S>(self) -> Result<(Layer<S>, Guard), writer::Error>
+    /// Create a new [`Layer`], and a [`Guard`] that handles e.g flushing [`NonBlocking`] IO.
+    ///
+    /// Errors when opening files or directories are deferred for the subscriber to handle (typically by logging).
+    /// If you wish to handle them yourself, see [`Self::try_layer`].
+    pub fn layer<S>(self) -> (Layer<S>, Guard)
     where
         S: tracing_core::Subscriber + for<'s> tracing_subscriber::registry::LookupSpan<'s>,
     {
-        let (writer, fields, event, guard) = self.into_components()?;
+        let (writer, fields, event, guard) = self
+            .into_components(true)
+            .expect("errors have been deferred");
+        let layer = tracing_subscriber::fmt::layer()
+            .fmt_fields(fields)
+            .event_format(event)
+            .with_writer(writer);
+        (layer, guard)
+    }
+    /// Create a new [`Layer`], and a [`Guard`] that handles e.g flushing [`NonBlocking`] IO.
+    ///
+    /// Returns [`Err`] if e.g opening a log file fails.
+    /// If you wish the subscriber to handle them (typically by logging), see [`Self::layer`].
+    pub fn try_layer<S>(self) -> Result<(Layer<S>, Guard), writer::Error>
+    where
+        S: tracing_core::Subscriber + for<'s> tracing_subscriber::registry::LookupSpan<'s>,
+    {
+        let (writer, fields, event, guard) = self.into_components(false)?;
         let layer = tracing_subscriber::fmt::layer()
             .fmt_fields(fields)
             .event_format(event)
             .with_writer(writer);
         Ok((layer, guard))
     }
-    pub fn builder(self) -> Result<(SubscriberBuilder, Guard), writer::Error> {
-        let (writer, fields, event, guard) = self.into_components()?;
+    /// Create a new [`SubscriberBuilder`], and a [`Guard`] that handles e.g flushing [`NonBlocking`] IO.
+    ///
+    /// Errors when opening files or directories are deferred for the subscriber to handle (typically by logging).
+    /// If you wish to handle them yourself, see [`Self::try_builder`].
+    pub fn builder(self) -> (SubscriberBuilder, Guard) {
+        let (writer, fields, event, guard) = self
+            .into_components(true)
+            .expect("errors have been deferred");
+        let builder = tracing_subscriber::fmt()
+            .fmt_fields(fields)
+            .event_format(event)
+            .with_writer(writer);
+        (builder, guard)
+    }
+    /// Create a new [`SubscriberBuilder`], and a [`Guard`] that handles e.g flushing [`NonBlocking`] IO.
+    ///
+    /// Returns [`Err`] if e.g opening a log file fails.
+    /// If you wish the subscriber to handle them (typically by logging), see [`Self::builder`].
+    pub fn try_builder(self) -> Result<(SubscriberBuilder, Guard), writer::Error> {
+        let (writer, fields, event, guard) = self.into_components(false)?;
         let builder = tracing_subscriber::fmt()
             .fmt_fields(fields)
             .event_format(event)
