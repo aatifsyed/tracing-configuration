@@ -8,7 +8,9 @@ use tracing_appender::{
 /// A thread guard in the case of [`NonBlocking`](crate::NonBlocking) config.
 ///
 /// See [`WorkerGuard`] for more.
-pub struct Guard(Option<GuardInner>);
+pub struct Guard {
+    _guard: Option<GuardInner>,
+}
 
 /// Implementor of [`tracing_subscriber::fmt::MakeWriter`],
 /// constructed from [`Writer`](crate::Writer) in [`Self::new`].
@@ -39,15 +41,15 @@ impl MakeWriter {
     /// Errors when opening files or directories are deferred for the subscriber to handle (typically by logging).
     /// If you wish to handle them yourself, see [`Self::try_new`].
     pub fn new(writer: crate::Writer) -> (Self, Guard) {
-        let (this, guard) = MakeWriterInner::new(writer, true).expect("errors have been deferred");
-        (Self(this), Guard(guard))
+        let (this, _guard) = MakeWriterInner::new(writer, true).expect("errors have been deferred");
+        (Self(this), Guard { _guard })
     }
     /// Create a new [`MakeWriter`].
     ///
     /// Returns [`Err`] if e.g opening a log file fails.
     /// If you wish the subscriber to handle them (typically by logging), see [`Self::new`].
     pub fn try_new(writer: crate::Writer) -> Result<(Self, Guard), Error> {
-        MakeWriterInner::new(writer, false).map(|(l, r)| (Self(l), Guard(r)))
+        MakeWriterInner::new(writer, false).map(|(l, r)| (Self(l), Guard { _guard: r }))
     }
 }
 impl<'a> tracing_subscriber::fmt::MakeWriter<'a> for MakeWriter {
@@ -104,8 +106,11 @@ impl MakeWriterInner {
                 } {
                     Ok(it) => match non_blocking {
                         Some(nb) => {
-                            let (nb, g) = nb.build(it);
-                            Ok((Self::NonBlocking(nb), Some(GuardInner::NonBlocking(g))))
+                            let (nb, _guard) = nb.build(it);
+                            Ok((
+                                Self::NonBlocking(nb),
+                                Some(GuardInner::NonBlocking { _guard }),
+                            ))
                         }
                         None => Ok((Self::File(it), None)),
                     },
@@ -160,8 +165,11 @@ impl MakeWriterInner {
                 match builder.build(&directory) {
                     Ok(it) => match non_blocking {
                         Some(nb) => {
-                            let (nb, g) = nb.build(it);
-                            Ok((Self::NonBlocking(nb), Some(GuardInner::NonBlocking(g))))
+                            let (nb, _guard) = nb.build(it);
+                            Ok((
+                                Self::NonBlocking(nb),
+                                Some(GuardInner::NonBlocking { _guard }),
+                            ))
                         }
                         None => Ok((Self::Rolling(it), None)),
                     },
@@ -193,7 +201,7 @@ impl MakeWriterInner {
 }
 
 enum GuardInner {
-    NonBlocking(WorkerGuard),
+    NonBlocking { _guard: WorkerGuard },
 }
 
 enum MakeWriterInner {
