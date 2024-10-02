@@ -189,13 +189,13 @@ pub enum Formatter {
 pub struct Json {
     /// See [`tracing_subscriber::fmt::format::Json::flatten_event`].
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    flatten_event: Option<bool>,
+    pub flatten_event: Option<bool>,
     /// See [`tracing_subscriber::fmt::format::Json::with_current_span`].
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    current_span: Option<bool>,
+    pub current_span: Option<bool>,
     /// See [`tracing_subscriber::fmt::format::Json::with_span_list`].
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    span_list: Option<bool>,
+    pub span_list: Option<bool>,
 }
 
 /// Which timer implementation to use.
@@ -261,16 +261,16 @@ pub enum Rotation {
 pub struct Rolling {
     /// See [`tracing_appender::rolling::Builder::max_log_files`].
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    limit: Option<usize>,
+    pub limit: Option<usize>,
     /// See [`tracing_appender::rolling::Builder::filename_prefix`].
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    prefix: Option<String>,
+    pub prefix: Option<String>,
     /// See [`tracing_appender::rolling::Builder::filename_suffix`].
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    suffix: Option<String>,
+    pub suffix: Option<String>,
     /// See [`tracing_appender::rolling::Builder::rotation`].
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    rotation: Option<Rotation>,
+    pub rotation: Option<Rotation>,
 }
 
 /// How the [`tracing_appender::non_blocking::NonBlocking`] should behave on a full queue.

@@ -8,7 +8,7 @@ documentation = "https://docs.rs/tracing-configuration"
 repository = "https://github.com/aatifsyed/tracing-configuration"
 
 [dependencies]
-io-extra = "0.2.0"
+io-extra = "0.3.0"
 serde = { version = "1.0.197", features = ["derive"] }
 thiserror = "1.0.58"
 tracing-appender = "0.2.3"

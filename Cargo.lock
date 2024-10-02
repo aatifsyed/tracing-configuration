@@ -111,9 +111,9 @@ dependencies = [
 
 [[package]]
 name = "io-extra"
-version = "0.2.0"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "787c1a0107739b596b41269c3088ab8919c7f1b8929162a49575b83ca13f1003"
+checksum = "b66cf557b0b9e9e047036b063bea7829984a66bf44574d27a52e38cecffed7c3"
 
 [[package]]
 name = "itoa"
