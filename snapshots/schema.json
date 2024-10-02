@@ -1,0 +1,432 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Subscriber",
+  "description": "Configuration for a totally dynamic subscriber.",
+  "type": "object",
+  "properties": {
+    "format": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/Format"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "writer": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/Writer"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "definitions": {
+    "BackpressureBehaviour": {
+      "description": "How the [`tracing_appender::non_blocking::NonBlocking`] should behave on a full queue.\n\nSee [`tracing_appender::non_blocking::NonBlockingBuilder::lossy`].",
+      "type": "string",
+      "enum": [
+        "drop",
+        "block"
+      ]
+    },
+    "FileOpenBehaviour": {
+      "description": "How to treat a newly created log file in [`Writer::File`].",
+      "type": "string",
+      "enum": [
+        "truncate",
+        "append"
+      ]
+    },
+    "Format": {
+      "description": "Config for formatters.",
+      "type": "object",
+      "properties": {
+        "ansi": {
+          "description": "See [`tracing_subscriber::fmt::SubscriberBuilder::with_ansi`].",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "file": {
+          "description": "See [`tracing_subscriber::fmt::SubscriberBuilder::with_file`].",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "formatter": {
+          "description": "Specific output formats.",
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Formatter"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "level": {
+          "description": "See [`tracing_subscriber::fmt::SubscriberBuilder::with_level`].",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "line_number": {
+          "description": "See [`tracing_subscriber::fmt::SubscriberBuilder::with_line_number`].",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "target": {
+          "description": "See [`tracing_subscriber::fmt::SubscriberBuilder::with_target`].",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "thread_ids": {
+          "description": "See [`tracing_subscriber::fmt::SubscriberBuilder::with_thread_ids`].",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "thread_names": {
+          "description": "See [`tracing_subscriber::fmt::SubscriberBuilder::with_thread_names`].",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "timer": {
+          "description": "What timing information to include.",
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Timer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "Formatter": {
+      "description": "The specific output format.",
+      "oneOf": [
+        {
+          "description": "See [`tracing_subscriber::fmt::format::Full`].",
+          "type": "string",
+          "enum": [
+            "full"
+          ]
+        },
+        {
+          "description": "See [`tracing_subscriber::fmt::format::Compact`].",
+          "type": "string",
+          "enum": [
+            "compact"
+          ]
+        },
+        {
+          "description": "See [`tracing_subscriber::fmt::format::Pretty`].",
+          "type": "string",
+          "enum": [
+            "pretty"
+          ]
+        },
+        {
+          "description": "See [`tracing_subscriber::fmt::format::Json`].",
+          "type": "object",
+          "required": [
+            "json"
+          ],
+          "properties": {
+            "json": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/Json"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "Json": {
+      "type": "object",
+      "properties": {
+        "current_span": {
+          "description": "See [`tracing_subscriber::fmt::format::Json::with_current_span`].",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "flatten_event": {
+          "description": "See [`tracing_subscriber::fmt::format::Json::flatten_event`].",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "span_list": {
+          "description": "See [`tracing_subscriber::fmt::format::Json::with_span_list`].",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      }
+    },
+    "NonBlocking": {
+      "description": "Configuration for [`tracing_appender::non_blocking::NonBlocking`].",
+      "type": "object",
+      "properties": {
+        "behaviour": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/BackpressureBehaviour"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "buffer_length": {
+          "description": "See [`tracing_appender::non_blocking::NonBlockingBuilder::buffered_lines_limit`].",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint",
+          "minimum": 0.0
+        }
+      }
+    },
+    "Rolling": {
+      "description": "Config for [`tracing_appender::rolling::RollingFileAppender`].",
+      "type": "object",
+      "properties": {
+        "limit": {
+          "description": "See [`tracing_appender::rolling::Builder::max_log_files`].",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint",
+          "minimum": 0.0
+        },
+        "prefix": {
+          "description": "See [`tracing_appender::rolling::Builder::filename_prefix`].",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "rotation": {
+          "description": "See [`tracing_appender::rolling::Builder::rotation`].",
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Rotation"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "suffix": {
+          "description": "See [`tracing_appender::rolling::Builder::filename_suffix`].",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "Rotation": {
+      "description": "How often to rotate the [`tracing_appender::rolling::RollingFileAppender`].\n\nSee [`tracing_appender::rolling::Rotation`].",
+      "type": "string",
+      "enum": [
+        "minutely",
+        "hourly",
+        "daily",
+        "never"
+      ]
+    },
+    "Timer": {
+      "description": "Which timer implementation to use.",
+      "oneOf": [
+        {
+          "description": "See [`tracing_subscriber::fmt::SubscriberBuilder::without_time`].",
+          "type": "string",
+          "enum": [
+            "none"
+          ]
+        },
+        {
+          "description": "See [`tracing_subscriber::fmt::time::ChronoLocal`].",
+          "type": "object",
+          "required": [
+            "local"
+          ],
+          "properties": {
+            "local": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "description": "See [`tracing_subscriber::fmt::time::ChronoUtc`].",
+          "type": "object",
+          "required": [
+            "utc"
+          ],
+          "properties": {
+            "utc": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "description": "See [`tracing_subscriber::fmt::time::SystemTime`].",
+          "type": "string",
+          "enum": [
+            "system"
+          ]
+        },
+        {
+          "description": "See [`tracing_subscriber::fmt::time::Uptime`].",
+          "type": "string",
+          "enum": [
+            "uptime"
+          ]
+        }
+      ]
+    },
+    "Writer": {
+      "description": "Which writer to use.",
+      "oneOf": [
+        {
+          "description": "No writer.",
+          "type": "string",
+          "enum": [
+            "null"
+          ]
+        },
+        {
+          "description": "Use [`io::stdout`](std::io::stdout).",
+          "type": "string",
+          "enum": [
+            "stdout"
+          ]
+        },
+        {
+          "description": "Use [`io::stderr`](std::io::stderr).",
+          "type": "string",
+          "enum": [
+            "stderr"
+          ]
+        },
+        {
+          "description": "Write to a [`File`](std::fs::File).",
+          "type": "object",
+          "required": [
+            "file"
+          ],
+          "properties": {
+            "file": {
+              "type": "object",
+              "required": [
+                "behaviour",
+                "path"
+              ],
+              "properties": {
+                "behaviour": {
+                  "$ref": "#/definitions/FileOpenBehaviour"
+                },
+                "non_blocking": {
+                  "description": "Wrap the writer in a [`tracing_appender::non_blocking::NonBlocking`].",
+                  "anyOf": [
+                    {
+                      "$ref": "#/definitions/NonBlocking"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "path": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "description": "Use a [`tracing_appender::rolling::RollingFileAppender`].",
+          "type": "object",
+          "required": [
+            "rolling"
+          ],
+          "properties": {
+            "rolling": {
+              "type": "object",
+              "required": [
+                "directory"
+              ],
+              "properties": {
+                "directory": {
+                  "type": "string"
+                },
+                "non_blocking": {
+                  "description": "Wrap the writer in a [`tracing_appender::non_blocking::NonBlocking`].",
+                  "anyOf": [
+                    {
+                      "$ref": "#/definitions/NonBlocking"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "rolling": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/definitions/Rolling"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    }
+  }
+}

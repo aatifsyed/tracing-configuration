@@ -334,3 +334,10 @@ pub struct NonBlocking {
     #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
     pub behaviour: Option<BackpressureBehaviour>,
 }
+
+#[cfg(all(test, feature = "schemars"))]
+#[test]
+fn schema() {
+    let s = serde_json::to_string_pretty(&schemars::schema_for!(Subscriber)).unwrap();
+    expect_test::expect_file!["../snapshots/schema.json"].assert_eq(&s);
+}

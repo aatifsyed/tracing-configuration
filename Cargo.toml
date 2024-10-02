@@ -26,3 +26,7 @@ tracing-subscriber = { version = "0.3.18", features = [
 schemars = ["dep:schemars", "serde"]
 serde = ["dep:serde"]
 default = ["serde"]
+
+[dev-dependencies]
+expect-test = "1.5.0"
+serde_json = "1.0.128"
