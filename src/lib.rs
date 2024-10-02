@@ -5,22 +5,29 @@ pub mod format;
 pub mod time;
 pub mod writer;
 
+#[cfg(feature = "schemars")]
+use schemars::JsonSchema;
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
 use writer::Guard;
 
 /// Configuration for a totally dynamic subscriber.
-#[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Default, Serialize, Deserialize)]
+#[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Default)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "schemars", derive(JsonSchema))]
 pub struct Subscriber {
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
     pub format: Option<Format>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
     pub writer: Option<Writer>,
 }
 
-#[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Default, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
+#[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Default)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "schemars", derive(JsonSchema))]
+#[cfg_attr(feature = "serde", serde(rename_all = "lowercase"))]
 pub enum LevelFilter {
     Error,
     Warn,
@@ -139,40 +146,44 @@ impl Subscriber {
 }
 
 /// Config for formatters.
-#[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Default, Serialize, Deserialize)]
+#[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Default)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "schemars", derive(JsonSchema))]
 pub struct Format {
     /// See [`tracing_subscriber::fmt::SubscriberBuilder::with_ansi`].
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
     pub ansi: Option<bool>,
     /// See [`tracing_subscriber::fmt::SubscriberBuilder::with_target`].
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
     pub target: Option<bool>,
     /// See [`tracing_subscriber::fmt::SubscriberBuilder::with_level`].
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
     pub level: Option<bool>,
     /// See [`tracing_subscriber::fmt::SubscriberBuilder::with_thread_ids`].
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
     pub thread_ids: Option<bool>,
     /// See [`tracing_subscriber::fmt::SubscriberBuilder::with_thread_names`].
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
     pub thread_names: Option<bool>,
     /// See [`tracing_subscriber::fmt::SubscriberBuilder::with_file`].
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
     pub file: Option<bool>,
     /// See [`tracing_subscriber::fmt::SubscriberBuilder::with_line_number`].
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
     pub line_number: Option<bool>,
     /// Specific output formats.
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
     pub formatter: Option<Formatter>,
     /// What timing information to include.
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
     pub timer: Option<Timer>,
 }
 
 /// The specific output format.
-#[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Default, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
+#[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Default)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "schemars", derive(JsonSchema))]
+#[cfg_attr(feature = "serde", serde(rename_all = "lowercase"))]
 pub enum Formatter {
     /// See [`tracing_subscriber::fmt::format::Full`].
     #[default]
@@ -185,29 +196,39 @@ pub enum Formatter {
     Json(Option<Json>),
 }
 
-#[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Default, Serialize, Deserialize)]
+#[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Default)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "schemars", derive(JsonSchema))]
 pub struct Json {
     /// See [`tracing_subscriber::fmt::format::Json::flatten_event`].
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
     pub flatten_event: Option<bool>,
     /// See [`tracing_subscriber::fmt::format::Json::with_current_span`].
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
     pub current_span: Option<bool>,
     /// See [`tracing_subscriber::fmt::format::Json::with_span_list`].
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
     pub span_list: Option<bool>,
 }
 
 /// Which timer implementation to use.
-#[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Default, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
+#[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Default)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "schemars", derive(JsonSchema))]
+#[cfg_attr(feature = "serde", serde(rename_all = "lowercase"))]
 pub enum Timer {
     /// See [`tracing_subscriber::fmt::SubscriberBuilder::without_time`].
     None,
     /// See [`tracing_subscriber::fmt::time::ChronoLocal`].
-    Local(#[serde(skip_serializing_if = "Option::is_none")] Option<String>),
+    Local(
+        #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
+        Option<String>,
+    ),
     /// See [`tracing_subscriber::fmt::time::ChronoUtc`].
-    Utc(#[serde(skip_serializing_if = "Option::is_none")] Option<String>),
+    Utc(
+        #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
+        Option<String>,
+    ),
     /// See [`tracing_subscriber::fmt::time::SystemTime`].
     #[default]
     System,
@@ -216,8 +237,10 @@ pub enum Timer {
 }
 
 /// Which writer to use.
-#[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Default, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
+#[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Default)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "schemars", derive(JsonSchema))]
+#[cfg_attr(feature = "serde", serde(rename_all = "lowercase"))]
 pub enum Writer {
     /// No writer.
     Null,
@@ -231,7 +254,7 @@ pub enum Writer {
         path: PathBuf,
         behaviour: FileOpenBehaviour,
         /// Wrap the writer in a [`tracing_appender::non_blocking::NonBlocking`].
-        #[serde(skip_serializing_if = "Option::is_none")]
+        #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
         non_blocking: Option<NonBlocking>,
     },
     /// Use a [`tracing_appender::rolling::RollingFileAppender`].
@@ -239,7 +262,7 @@ pub enum Writer {
         directory: PathBuf,
         rolling: Option<Rolling>,
         /// Wrap the writer in a [`tracing_appender::non_blocking::NonBlocking`].
-        #[serde(skip_serializing_if = "Option::is_none")]
+        #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
         non_blocking: Option<NonBlocking>,
     },
 }
@@ -247,8 +270,10 @@ pub enum Writer {
 /// How often to rotate the [`tracing_appender::rolling::RollingFileAppender`].
 ///
 /// See [`tracing_appender::rolling::Rotation`].
-#[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Default, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
+#[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Default)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "schemars", derive(JsonSchema))]
+#[cfg_attr(feature = "serde", serde(rename_all = "lowercase"))]
 pub enum Rotation {
     Minutely,
     Hourly,
@@ -257,47 +282,55 @@ pub enum Rotation {
     Never,
 }
 /// Config for [`tracing_appender::rolling::RollingFileAppender`].
-#[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Default, Serialize, Deserialize)]
+#[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Default)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "schemars", derive(JsonSchema))]
 pub struct Rolling {
     /// See [`tracing_appender::rolling::Builder::max_log_files`].
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
     pub limit: Option<usize>,
     /// See [`tracing_appender::rolling::Builder::filename_prefix`].
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
     pub prefix: Option<String>,
     /// See [`tracing_appender::rolling::Builder::filename_suffix`].
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
     pub suffix: Option<String>,
     /// See [`tracing_appender::rolling::Builder::rotation`].
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
     pub rotation: Option<Rotation>,
 }
 
 /// How the [`tracing_appender::non_blocking::NonBlocking`] should behave on a full queue.
 ///
 /// See [`tracing_appender::non_blocking::NonBlockingBuilder::lossy`].
-#[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
+#[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "schemars", derive(JsonSchema))]
+#[cfg_attr(feature = "serde", serde(rename_all = "lowercase"))]
 pub enum BackpressureBehaviour {
     Drop,
     Block,
 }
 
 /// How to treat a newly created log file in [`Writer::File`].
-#[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
+#[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "schemars", derive(JsonSchema))]
+#[cfg_attr(feature = "serde", serde(rename_all = "lowercase"))]
 pub enum FileOpenBehaviour {
     Truncate,
     Append,
 }
 
 /// Configuration for [`tracing_appender::non_blocking::NonBlocking`].
-#[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Default, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
+#[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Default)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "schemars", derive(JsonSchema))]
+#[cfg_attr(feature = "serde", serde(rename_all = "lowercase"))]
 pub struct NonBlocking {
     /// See [`tracing_appender::non_blocking::NonBlockingBuilder::buffered_lines_limit`].
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
     pub buffer_length: Option<usize>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
     pub behaviour: Option<BackpressureBehaviour>,
 }
