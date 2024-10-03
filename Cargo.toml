@@ -15,11 +15,12 @@ thiserror = "1.0.58"
 tracing-appender = "0.2.3"
 tracing-core = { version = "0.1.32", default-features = false }
 tracing-subscriber = { version = "0.3.18", features = [
-    "std",
-    "fmt",
-    "chrono",
-    "json",
     "ansi",
+    "chrono",
+    "env-filter",
+    "fmt",
+    "json",
+    "std",
 ], default-features = false }
 
 [features]

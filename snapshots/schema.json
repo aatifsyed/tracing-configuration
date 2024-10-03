@@ -4,6 +4,16 @@
   "description": "Configuration for a totally dynamic subscriber.",
   "type": "object",
   "properties": {
+    "filter": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/Filter"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "format": {
       "anyOf": [
         {
@@ -34,6 +44,9 @@
         "block"
       ]
     },
+    "Directive": {
+      "type": "string"
+    },
     "FileOpenBehaviour": {
       "description": "How to treat a newly created log file in [`Writer::File`].",
       "type": "string",
@@ -41,6 +54,26 @@
         "truncate",
         "append"
       ]
+    },
+    "Filter": {
+      "type": "object",
+      "required": [
+        "directives"
+      ],
+      "properties": {
+        "directives": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Directive"
+          }
+        },
+        "regex": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      }
     },
     "Format": {
       "description": "Config for formatters.",

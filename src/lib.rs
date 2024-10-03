@@ -8,8 +8,9 @@ pub mod writer;
 #[cfg(feature = "schemars")]
 use schemars::JsonSchema;
 #[cfg(feature = "serde")]
-use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use std::{fmt, path::PathBuf, str::FromStr};
+use tracing_subscriber::EnvFilter;
 
 use writer::Guard;
 
@@ -22,13 +23,98 @@ pub struct Subscriber {
     pub format: Option<Format>,
     #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
     pub writer: Option<Writer>,
+    #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
+    pub filter: Option<Filter>,
+}
+
+#[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Default)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "schemars", derive(JsonSchema))]
+pub struct Filter {
+    #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
+    pub regex: Option<bool>,
+    pub directives: Vec<Directive>,
+}
+
+#[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[cfg_attr(feature = "schemars", derive(JsonSchema))]
+pub struct Directive(String);
+
+impl Directive {
+    fn directive(&self) -> tracing_subscriber::filter::Directive {
+        self.0.parse().unwrap()
+    }
+}
+
+impl FromStr for Directive {
+    type Err = tracing_subscriber::filter::ParseError;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.parse::<tracing_subscriber::filter::Directive>() {
+            Ok(_) => Ok(Self(String::from(s))),
+            Err(e) => Err(e),
+        }
+    }
+}
+
+impl fmt::Display for Directive {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(&self.0, f)
+    }
+}
+#[cfg(feature = "serde")]
+impl<'de> Deserialize<'de> for Directive {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        stringify::deserialize(d)
+    }
+}
+#[cfg(feature = "serde")]
+impl Serialize for Directive {
+    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        stringify::serialize(self, s)
+    }
+}
+
+impl From<Filter> for EnvFilter {
+    fn from(value: Filter) -> Self {
+        let Filter { regex, directives } = value;
+        directives.into_iter().fold(
+            EnvFilter::builder()
+                .with_regex(regex.unwrap_or_default())
+                .parse_lossy(""),
+            |acc, el| acc.add_directive(el.directive()),
+        )
+    }
+}
+
+#[cfg(feature = "serde")]
+mod stringify {
+    use std::{borrow::Cow, fmt, str::FromStr};
+
+    use serde::{Deserialize, Deserializer, Serializer};
+
+    pub fn deserialize<'de, D: Deserializer<'de>, T>(d: D) -> Result<T, D::Error>
+    where
+        T: FromStr,
+        T::Err: fmt::Display,
+    {
+        #[derive(Deserialize)]
+        struct CowStr<'a>(#[serde(borrow)] Cow<'a, str>);
+        let CowStr(s) = Deserialize::deserialize(d)?;
+        s.parse().map_err(serde::de::Error::custom)
+    }
+    pub fn serialize<S: Serializer, T>(t: &T, s: S) -> Result<S::Ok, S::Error>
+    where
+        T: fmt::Display,
+    {
+        s.collect_str(t)
+    }
 }
 
 #[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Default)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "schemars", derive(JsonSchema))]
 #[cfg_attr(feature = "serde", serde(rename_all = "lowercase"))]
-pub enum LevelFilter {
+pub enum Level {
     Error,
     Warn,
     #[default]
@@ -37,14 +123,14 @@ pub enum LevelFilter {
     Trace,
 }
 
-impl From<LevelFilter> for tracing_core::LevelFilter {
-    fn from(value: LevelFilter) -> Self {
+impl From<Level> for tracing_core::LevelFilter {
+    fn from(value: Level) -> Self {
         match value {
-            LevelFilter::Error => Self::ERROR,
-            LevelFilter::Warn => Self::WARN,
-            LevelFilter::Info => Self::INFO,
-            LevelFilter::Debug => Self::DEBUG,
-            LevelFilter::Trace => Self::TRACE,
+            Level::Error => Self::ERROR,
+            Level::Warn => Self::WARN,
+            Level::Info => Self::INFO,
+            Level::Debug => Self::DEBUG,
+            Level::Trace => Self::TRACE,
         }
     }
 }
@@ -53,7 +139,7 @@ impl From<LevelFilter> for tracing_core::LevelFilter {
 pub type SubscriberBuilder<
     N = format::FormatFields,
     E = format::FormatEvent,
-    F = tracing_core::LevelFilter,
+    F = EnvFilter,
     W = writer::MakeWriter,
 > = tracing_subscriber::fmt::SubscriberBuilder<N, E, F, W>;
 
@@ -70,11 +156,16 @@ impl Subscriber {
             writer::MakeWriter,
             format::FormatFields,
             format::FormatEvent,
+            EnvFilter,
             Guard,
         ),
         writer::Error,
     > {
-        let Self { format, writer } = self;
+        let Self {
+            format,
+            writer,
+            filter,
+        } = self;
         let format = format.unwrap_or_default();
         let writer = writer.unwrap_or_default();
         let (writer, guard) = match defer {
@@ -83,17 +174,20 @@ impl Subscriber {
         };
         let fields = format::FormatFields::from(format.formatter.clone().unwrap_or_default());
         let event = format::FormatEvent::from(format);
-        Ok((writer, fields, event, guard))
+        let filter = EnvFilter::from(filter.unwrap_or_default());
+        Ok((writer, fields, event, filter, guard))
     }
     /// Create a new [`Layer`], and a [`Guard`] that handles e.g flushing [`NonBlocking`] IO.
     ///
     /// Errors when opening files or directories are deferred for the subscriber to handle (typically by logging).
     /// If you wish to handle them yourself, see [`Self::try_layer`].
+    ///
+    /// Note that filtering is ignored for layers.
     pub fn layer<S>(self) -> (Layer<S>, Guard)
     where
         S: tracing_core::Subscriber + for<'s> tracing_subscriber::registry::LookupSpan<'s>,
     {
-        let (writer, fields, event, guard) = self
+        let (writer, fields, event, _filter, guard) = self
             .into_components(true)
             .expect("errors have been deferred");
         let layer = tracing_subscriber::fmt::layer()
@@ -106,11 +200,13 @@ impl Subscriber {
     ///
     /// Returns [`Err`] if e.g opening a log file fails.
     /// If you wish the subscriber to handle them (typically by logging), see [`Self::layer`].
+    ///
+    /// Note that filtering is ignored for layers.
     pub fn try_layer<S>(self) -> Result<(Layer<S>, Guard), writer::Error>
     where
         S: tracing_core::Subscriber + for<'s> tracing_subscriber::registry::LookupSpan<'s>,
     {
-        let (writer, fields, event, guard) = self.into_components(false)?;
+        let (writer, fields, event, _filter, guard) = self.into_components(false)?;
         let layer = tracing_subscriber::fmt::layer()
             .fmt_fields(fields)
             .event_format(event)
@@ -122,13 +218,14 @@ impl Subscriber {
     /// Errors when opening files or directories are deferred for the subscriber to handle (typically by logging).
     /// If you wish to handle them yourself, see [`Self::try_builder`].
     pub fn builder(self) -> (SubscriberBuilder, Guard) {
-        let (writer, fields, event, guard) = self
+        let (writer, fields, event, filter, guard) = self
             .into_components(true)
             .expect("errors have been deferred");
         let builder = tracing_subscriber::fmt()
             .fmt_fields(fields)
             .event_format(event)
-            .with_writer(writer);
+            .with_writer(writer)
+            .with_env_filter(filter);
         (builder, guard)
     }
     /// Create a new [`SubscriberBuilder`], and a [`Guard`] that handles e.g flushing [`NonBlocking`] IO.
@@ -136,11 +233,12 @@ impl Subscriber {
     /// Returns [`Err`] if e.g opening a log file fails.
     /// If you wish the subscriber to handle them (typically by logging), see [`Self::builder`].
     pub fn try_builder(self) -> Result<(SubscriberBuilder, Guard), writer::Error> {
-        let (writer, fields, event, guard) = self.into_components(false)?;
+        let (writer, fields, event, filter, guard) = self.into_components(false)?;
         let builder = tracing_subscriber::fmt()
             .fmt_fields(fields)
             .event_format(event)
-            .with_writer(writer);
+            .with_writer(writer)
+            .with_env_filter(filter);
         Ok((builder, guard))
     }
 }
