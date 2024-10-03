@@ -74,6 +74,18 @@ impl Serialize for Directive {
     }
 }
 
+impl From<Level> for EnvFilter {
+    fn from(value: Level) -> Self {
+        Self::new(value.as_str())
+    }
+}
+
+impl From<Level> for Directive {
+    fn from(value: Level) -> Self {
+        value.as_str().parse().unwrap()
+    }
+}
+
 impl From<Filter> for EnvFilter {
     fn from(value: Filter) -> Self {
         let Filter { regex, directives } = value;
@@ -110,22 +122,83 @@ mod stringify {
     }
 }
 
+macro_rules! strum {
+    (
+        $(#[$enum_meta:meta])*
+        $vis:vis enum $enum_name:ident {
+            $(
+                $(#[$variant_meta:meta])*
+                $variant_name:ident = $string:literal
+            ),* $(,)?
+        }
+    ) => {
+        $(#[$enum_meta])*
+        $vis enum $enum_name {
+            $(
+                $(#[$variant_meta])*
+                $variant_name,
+            )*
+        }
+        impl $enum_name {
+            const ALL: &[&str] = [$($string),*].as_slice();
+            pub const fn as_str(&self) -> &'static str {
+                match *self {
+                    $(
+                        Self::$variant_name => $string,
+                    )*
+                }
+            }
+        }
+        impl core::fmt::Display for $enum_name {
+            fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+                f.write_str(self.as_str())
+            }
+        }
+        impl core::str::FromStr for $enum_name {
+            type Err = ParseError;
+            fn from_str(s: &str) -> Result<Self, Self::Err> {
+                match s {
+                    $(
+                        $string => Ok(Self::$variant_name),
+                    )*
+                    _ => Err(ParseError(()))
+                }
+            }
+        }
+        #[derive(Debug)]
+        $vis struct ParseError(());
+        impl core::fmt::Display for ParseError {
+            fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+                f.write_str("expected one of: ")?;
+                for exp in $enum_name::ALL {
+                    f.write_fmt(format_args!(" `{}`", exp))?
+                }
+                Ok(())
+            }
+        }
+        impl std::error::Error for ParseError {}
+    };
+}
+
+strum! {
 #[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Default)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "schemars", derive(JsonSchema))]
 #[cfg_attr(feature = "serde", serde(rename_all = "lowercase"))]
 pub enum Level {
-    Error,
-    Warn,
+    Off = "off",
+    Error = "error",
+    Warn = "warn",
     #[default]
-    Info,
-    Debug,
-    Trace,
-}
+    Info = "info",
+    Debug = "debug",
+    Trace = "trace",
+}}
 
 impl From<Level> for tracing_core::LevelFilter {
     fn from(value: Level) -> Self {
         match value {
+            Level::Off => Self::OFF,
             Level::Error => Self::ERROR,
             Level::Warn => Self::WARN,
             Level::Info => Self::INFO,
