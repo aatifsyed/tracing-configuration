@@ -95,11 +95,11 @@ impl crate::NonBlocking {
 impl MakeWriterInner {
     fn new(writer: crate::Writer, defer: bool) -> Result<(Self, Option<GuardInner>), Error> {
         match writer {
-            crate::Writer::File {
+            crate::Writer::File(crate::File {
                 path,
                 behaviour,
                 non_blocking,
-            } => {
+            }) => {
                 match match behaviour {
                     crate::FileOpenBehaviour::Truncate => File::create(&path),
                     crate::FileOpenBehaviour::Append => File::options().append(true).open(&path),
@@ -126,12 +126,12 @@ impl MakeWriterInner {
                     }
                 }
             }
-            crate::Writer::Rolling {
+            crate::Writer::Rolling(crate::Rolling {
                 directory,
-                rolling,
+                roll: rolling,
                 non_blocking,
-            } => {
-                let crate::Rolling {
+            }) => {
+                let crate::Roll {
                     limit,
                     prefix,
                     suffix,

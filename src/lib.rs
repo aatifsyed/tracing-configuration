@@ -334,6 +334,32 @@ pub enum Timer {
     Uptime,
 }
 
+/// Write to a [`File`](std::fs::File).
+#[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Default)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "schemars", derive(JsonSchema))]
+#[cfg_attr(feature = "serde", serde(rename_all = "lowercase"))]
+pub struct File {
+    pub path: PathBuf,
+    pub behaviour: FileOpenBehaviour,
+    /// Wrap the writer in a [`tracing_appender::non_blocking::NonBlocking`].
+    #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
+    pub non_blocking: Option<NonBlocking>,
+}
+
+#[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Default)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "schemars", derive(JsonSchema))]
+#[cfg_attr(feature = "serde", serde(rename_all = "lowercase"))]
+/// Use a [`tracing_appender::rolling::RollingFileAppender`].
+pub struct Rolling {
+    pub directory: PathBuf,
+    pub roll: Option<Roll>,
+    /// Wrap the writer in a [`tracing_appender::non_blocking::NonBlocking`].
+    #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
+    pub non_blocking: Option<NonBlocking>,
+}
+
 /// Which writer to use.
 #[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Default)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -347,22 +373,8 @@ pub enum Writer {
     Stdout,
     /// Use [`io::stderr`](std::io::stderr).
     Stderr,
-    /// Write to a [`File`](std::fs::File).
-    File {
-        path: PathBuf,
-        behaviour: FileOpenBehaviour,
-        /// Wrap the writer in a [`tracing_appender::non_blocking::NonBlocking`].
-        #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
-        non_blocking: Option<NonBlocking>,
-    },
-    /// Use a [`tracing_appender::rolling::RollingFileAppender`].
-    Rolling {
-        directory: PathBuf,
-        rolling: Option<Rolling>,
-        /// Wrap the writer in a [`tracing_appender::non_blocking::NonBlocking`].
-        #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
-        non_blocking: Option<NonBlocking>,
-    },
+    File(File),
+    Rolling(Rolling),
 }
 
 /// How often to rotate the [`tracing_appender::rolling::RollingFileAppender`].
@@ -383,7 +395,7 @@ pub enum Rotation {
 #[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Default)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "schemars", derive(JsonSchema))]
-pub struct Rolling {
+pub struct Roll {
     /// See [`tracing_appender::rolling::Builder::max_log_files`].
     #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
     pub limit: Option<usize>,
@@ -411,11 +423,12 @@ pub enum BackpressureBehaviour {
 }
 
 /// How to treat a newly created log file in [`Writer::File`].
-#[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Default)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "schemars", derive(JsonSchema))]
 #[cfg_attr(feature = "serde", serde(rename_all = "lowercase"))]
 pub enum FileOpenBehaviour {
+    #[default]
     Truncate,
     Append,
 }
