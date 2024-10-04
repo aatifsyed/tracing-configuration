@@ -11,6 +11,10 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::{fmt, path::PathBuf, str::FromStr};
 use tracing_subscriber::EnvFilter;
+use winnow::{
+    combinator::{alt, preceded, rest},
+    Parser as _,
+};
 
 use writer::Guard;
 
@@ -41,6 +45,7 @@ pub struct Filter {
 pub struct Directive(String);
 
 impl Directive {
+    pub const PARSE_HELP: &str = "target[span{field=value}]=level";
     fn directive(&self) -> tracing_subscriber::filter::Directive {
         self.0.parse().unwrap()
     }
@@ -122,10 +127,21 @@ mod stringify {
     }
 }
 
+#[derive(Debug)]
+pub struct ParseError(&'static str);
+
+impl fmt::Display for ParseError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_fmt(format_args!("expected {}", self.0))
+    }
+}
+
+impl std::error::Error for ParseError {}
+
 macro_rules! strum {
     (
         $(#[$enum_meta:meta])*
-        $vis:vis enum $enum_name:ident {
+        $vis:vis enum $enum_name:ident $parse_help:literal {
             $(
                 $(#[$variant_meta:meta])*
                 $variant_name:ident = $string:literal
@@ -140,7 +156,7 @@ macro_rules! strum {
             )*
         }
         impl $enum_name {
-            const ALL: &[&str] = [$($string),*].as_slice();
+            pub const PARSE_HELP: &str = $parse_help;
             pub const fn as_str(&self) -> &'static str {
                 match *self {
                     $(
@@ -161,22 +177,10 @@ macro_rules! strum {
                     $(
                         $string => Ok(Self::$variant_name),
                     )*
-                    _ => Err(ParseError(()))
+                    _ => Err(ParseError(Self::PARSE_HELP))
                 }
             }
         }
-        #[derive(Debug)]
-        $vis struct ParseError(());
-        impl core::fmt::Display for ParseError {
-            fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-                f.write_str("expected one of: ")?;
-                for exp in $enum_name::ALL {
-                    f.write_fmt(format_args!(" `{}`", exp))?
-                }
-                Ok(())
-            }
-        }
-        impl std::error::Error for ParseError {}
     };
 }
 
@@ -185,7 +189,7 @@ strum! {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "schemars", derive(JsonSchema))]
 #[cfg_attr(feature = "serde", serde(rename_all = "lowercase"))]
-pub enum Level {
+pub enum Level "<off|error|warn|info|debug|trace>" {
     Off = "off",
     Error = "error",
     Warn = "warn",
@@ -367,6 +371,23 @@ pub enum Formatter {
     Json(Option<Json>),
 }
 
+impl Formatter {
+    pub const PARSE_HELP: &str = "<full|compact|pretty|json>";
+}
+
+impl FromStr for Formatter {
+    type Err = ParseError;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(match s {
+            "full" => Self::Full,
+            "compact" => Self::Compact,
+            "pretty" => Self::Pretty,
+            "json" => Self::Json(None),
+            _ => return Err(ParseError(Self::PARSE_HELP)),
+        })
+    }
+}
+
 #[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Default)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "schemars", derive(JsonSchema))]
@@ -405,6 +426,27 @@ pub enum Timer {
     System,
     /// See [`tracing_subscriber::fmt::time::Uptime`].
     Uptime,
+}
+
+impl Timer {
+    pub const PARSE_HELP: &str = "<none| local[=FORMAT] | utc[=FORMAT] |system|uptime>";
+}
+
+impl FromStr for Timer {
+    type Err = ParseError;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        alt::<_, _, winnow::error::ErrorKind, _>((
+            "none".map(|_| Self::None),
+            preceded("local=", rest).map(|it| Self::Local(Some(String::from(it)))),
+            "local".map(|_| Self::Local(None)),
+            preceded("utc=", rest).map(|it| Self::Utc(Some(String::from(it)))),
+            "utc".map(|_| Self::Utc(None)),
+            "system".map(|_| Self::System),
+            "uptime".map(|_| Self::Uptime),
+        ))
+        .parse(s)
+        .map_err(|_| ParseError(Self::PARSE_HELP))
+    }
 }
 
 /// Write to a [`File`](std::fs::File).
@@ -450,6 +492,39 @@ pub enum Writer {
     Rolling(Rolling),
 }
 
+impl Writer {
+    pub const PARSE_HELP: &str = "<null|stdout|stderr| file=FILE | rolling=DIRECTORY>";
+}
+
+impl FromStr for Writer {
+    type Err = ParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        alt::<_, _, winnow::error::ErrorKind, _>((
+            alt(("null", "none")).map(|_| Self::Null),
+            "stdout".map(|_| Self::Stdout),
+            "stderr".map(|_| Self::Stderr),
+            preceded("file=", rest)
+                .verify(|it| !str::is_empty(it))
+                .map(|it| {
+                    Self::File(File {
+                        path: PathBuf::from(it),
+                        ..Default::default()
+                    })
+                }),
+            preceded("rolling=", rest).map(|it| {
+                Self::Rolling(Rolling {
+                    directory: PathBuf::from(it),
+                    ..Default::default()
+                })
+            }),
+        ))
+        .parse(s)
+        .map_err(|_| ParseError(Self::PARSE_HELP))
+    }
+}
+
+strum! {
 /// How often to rotate the [`tracing_appender::rolling::RollingFileAppender`].
 ///
 /// See [`tracing_appender::rolling::Rotation`].
@@ -457,13 +532,14 @@ pub enum Writer {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "schemars", derive(JsonSchema))]
 #[cfg_attr(feature = "serde", serde(rename_all = "lowercase"))]
-pub enum Rotation {
-    Minutely,
-    Hourly,
-    Daily,
+pub enum Rotation "<minutely|hourly|daily|never>" {
+    Minutely = "minutely",
+    Hourly = "hourly",
+    Daily = "daily",
     #[default]
-    Never,
-}
+    Never = "never",
+}}
+
 /// Config for [`tracing_appender::rolling::RollingFileAppender`].
 #[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Default)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -483,6 +559,7 @@ pub struct Roll {
     pub rotation: Option<Rotation>,
 }
 
+strum! {
 /// How the [`tracing_appender::non_blocking::NonBlocking`] should behave on a full queue.
 ///
 /// See [`tracing_appender::non_blocking::NonBlockingBuilder::lossy`].
@@ -490,21 +567,22 @@ pub struct Roll {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "schemars", derive(JsonSchema))]
 #[cfg_attr(feature = "serde", serde(rename_all = "lowercase"))]
-pub enum BackpressureBehaviour {
-    Drop,
-    Block,
-}
+pub enum BackpressureBehaviour "<drop|block>" {
+    Drop = "drop",
+    Block = "block",
+}}
 
+strum! {
 /// How to treat a newly created log file in [`Writer::File`].
 #[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Default)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "schemars", derive(JsonSchema))]
 #[cfg_attr(feature = "serde", serde(rename_all = "lowercase"))]
-pub enum FileOpenBehaviour {
+pub enum FileOpenBehaviour "<truncate|append>" {
     #[default]
-    Truncate,
-    Append,
-}
+    Truncate = "truncate",
+    Append = "append",
+}}
 
 /// Configuration for [`tracing_appender::non_blocking::NonBlocking`].
 #[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Default)]
