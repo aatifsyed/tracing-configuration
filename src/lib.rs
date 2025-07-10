@@ -5,6 +5,12 @@ pub mod format;
 pub mod time;
 pub mod writer;
 
+#[cfg(feature = "clap4")]
+use clap::{
+    builder::PossibleValue,
+    builder::{TypedValueParser, ValueParser, ValueParserFactory},
+    ValueEnum,
+};
 #[cfg(feature = "schemars1")]
 use schemars::JsonSchema;
 #[cfg(feature = "serde1")]
@@ -69,7 +75,7 @@ pub struct ParseError(&'static str);
 
 impl fmt::Display for ParseError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_fmt(format_args!("expected {}", self.0))
+        f.write_str(self.0)
     }
 }
 
@@ -242,7 +248,27 @@ impl FromStr for Formatter {
             "compact" => Self::Compact,
             "pretty" => Self::Pretty,
             "json" => Self::Json(None),
-            _ => return Err(ParseError("one of `full`, `compact`, `pretty`, or `json`")),
+            _ => {
+                return Err(ParseError(
+                    "Expected one of `full`, `compact`, `pretty`, or `json`",
+                ))
+            }
+        })
+    }
+}
+
+#[cfg(feature = "clap4")]
+impl ValueEnum for Formatter {
+    fn value_variants<'a>() -> &'a [Self] {
+        &[Self::Full, Self::Compact, Self::Pretty, Self::Json(None)]
+    }
+
+    fn to_possible_value(&self) -> Option<PossibleValue> {
+        Some(match self {
+            Formatter::Full => PossibleValue::new("full"),
+            Formatter::Compact => PossibleValue::new("compact"),
+            Formatter::Pretty => PossibleValue::new("pretty"),
+            Formatter::Json(_) => PossibleValue::new("json"),
         })
     }
 }
@@ -288,7 +314,7 @@ pub enum Timer {
 }
 
 impl Timer {
-    pub const PARSE_HELP: &str = "<none | local[=FORMAT] | utc[=FORMAT] | system | uptime>";
+    const PARSE_ERROR: &str = "Expected one of `none`, `local`, `local=<format>`, `utc`, `utc=<format>`, `system`, or `uptime`";
 }
 
 impl FromStr for Timer {
@@ -304,7 +330,38 @@ impl FromStr for Timer {
             "uptime".map(|_| Self::Uptime),
         ))
         .parse(s)
-        .map_err(|_| ParseError(Self::PARSE_HELP))
+        .map_err(|_| ParseError(Self::PARSE_ERROR))
+    }
+}
+
+#[cfg(feature = "clap4")]
+impl ValueEnum for Timer {
+    fn value_variants<'a>() -> &'a [Self] {
+        const {
+            &[
+                Timer::None,
+                Timer::Local(None),
+                Timer::Local(Some(String::new())),
+                Timer::Utc(None),
+                Timer::Utc(Some(String::new())),
+                Timer::System,
+                Timer::Uptime,
+            ]
+        }
+    }
+    fn to_possible_value(&self) -> Option<PossibleValue> {
+        Some(match self {
+            Timer::None => PossibleValue::new("none"),
+            Timer::Local(None) => PossibleValue::new("local"),
+            Timer::Local(Some(_)) => PossibleValue::new("local=<format>"),
+            Timer::Utc(None) => PossibleValue::new("utc"),
+            Timer::Utc(Some(_)) => PossibleValue::new("utc=<format>"),
+            Timer::System => PossibleValue::new("system"),
+            Timer::Uptime => PossibleValue::new("uptime"),
+        })
+    }
+    fn from_str(input: &str, _ignore_case: bool) -> Result<Self, String> {
+        input.parse().map_err(|ParseError(it)| String::from(it))
     }
 }
 
@@ -352,7 +409,8 @@ pub enum Writer {
 }
 
 impl Writer {
-    pub const PARSE_HELP: &str = "<null | stdout | stderr | file=FILE | rolling=DIRECTORY>";
+    const PARSE_ERROR: &str =
+        "Expected one of `null`, `stdout`, `stderr`, `file=<file>`, or `rolling=<directory>`";
 }
 
 impl FromStr for Writer {
@@ -379,7 +437,47 @@ impl FromStr for Writer {
             }),
         ))
         .parse(s)
-        .map_err(|_| ParseError(Self::PARSE_HELP))
+        .map_err(|_| ParseError(Self::PARSE_ERROR))
+    }
+}
+
+#[cfg(feature = "clap4")]
+// can't `const { PathBuf::new() }` so this is what we need
+impl ValueParserFactory for Writer {
+    type Parser = ValueParser;
+    fn value_parser() -> Self::Parser {
+        #[derive(Clone)]
+        struct _TypedValueParser;
+        impl TypedValueParser for _TypedValueParser {
+            type Value = Writer;
+            fn parse_ref(
+                &self,
+                cmd: &clap::Command,
+                _arg: Option<&clap::Arg>,
+                value: &std::ffi::OsStr,
+            ) -> Result<Self::Value, clap::Error> {
+                value
+                    .to_str()
+                    .ok_or(clap::Error::new(clap::error::ErrorKind::InvalidUtf8))?
+                    .parse()
+                    .map_err(|_| {
+                        clap::Error::new(clap::error::ErrorKind::InvalidValue).with_cmd(cmd)
+                    })
+            }
+            fn possible_values(&self) -> Option<Box<dyn Iterator<Item = PossibleValue> + '_>> {
+                Some(Box::new(
+                    [
+                        PossibleValue::new("null"),
+                        PossibleValue::new("stdout"),
+                        PossibleValue::new("stderr"),
+                        PossibleValue::new("file=<file>"),
+                        PossibleValue::new("rolling=<directory>"),
+                    ]
+                    .into_iter(),
+                ))
+            }
+        }
+        ValueParser::new(_TypedValueParser)
     }
 }
 
@@ -391,6 +489,7 @@ strum_lite::strum! {
 #[cfg_attr(feature = "serde1", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "schemars1", derive(JsonSchema))]
 #[cfg_attr(feature = "serde1", serde(rename_all = "lowercase"))]
+#[cfg_attr(feature = "clap4", derive(ValueEnum))]
 pub enum Rotation {
     Minutely = "minutely",
     Hourly = "hourly",
@@ -426,6 +525,7 @@ strum_lite::strum! {
 #[cfg_attr(feature = "serde1", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "schemars1", derive(JsonSchema))]
 #[cfg_attr(feature = "serde1", serde(rename_all = "lowercase"))]
+#[cfg_attr(feature = "clap", derive(ValueEnum))]
 pub enum BackpressureBehaviour {
     Drop = "drop",
     Block = "block",
@@ -437,6 +537,7 @@ strum_lite::strum! {
 #[cfg_attr(feature = "serde1", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "schemars1", derive(JsonSchema))]
 #[cfg_attr(feature = "serde1", serde(rename_all = "lowercase"))]
+#[cfg_attr(feature = "clap", derive(ValueEnum))]
 pub enum FileOpenMode {
     #[default]
     Truncate = "truncate",

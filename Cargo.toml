@@ -25,6 +25,7 @@ tracing-subscriber = { version = "0.3.18", features = [
     "std",
 ], default-features = false }
 winnow = "0.7.11"
+clap = { version = "4.5.41", optional = true }
 
 [features]
 default = ["serde"]
@@ -34,9 +35,11 @@ default = ["serde"]
 # Use the versioned names if that's not desired.
 serde = ["serde1"]
 schemars = ["schemars1"]
+clap = ["clap4"]
 
 schemars1 = ["dep:schemars"]
 serde1 = ["dep:serde", "dep:serde_with"]
+clap4 = ["dep:clap"]
 
 [dev-dependencies]
 anyhow = "1.0.89"
