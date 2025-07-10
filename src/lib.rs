@@ -51,11 +51,6 @@ pub struct Filter {
     pub directives: Vec<tracing_subscriber::filter::Directive>,
 }
 
-impl From<Level> for EnvFilter {
-    fn from(value: Level) -> Self {
-        Self::new(value.as_str())
-    }
-}
 impl From<Filter> for EnvFilter {
     fn from(value: Filter) -> Self {
         let Filter { regex, directives } = value;
@@ -79,80 +74,6 @@ impl fmt::Display for ParseError {
 }
 
 impl std::error::Error for ParseError {}
-
-macro_rules! strum {
-    (
-        $(#[$enum_meta:meta])*
-        $vis:vis enum $enum_name:ident $parse_help:literal {
-            $(
-                $(#[$variant_meta:meta])*
-                $variant_name:ident = $string:literal
-            ),* $(,)?
-        }
-    ) => {
-        $(#[$enum_meta])*
-        $vis enum $enum_name {
-            $(
-                $(#[$variant_meta])*
-                $variant_name,
-            )*
-        }
-        impl $enum_name {
-            pub const PARSE_HELP: &str = $parse_help;
-            pub const fn as_str(&self) -> &'static str {
-                match *self {
-                    $(
-                        Self::$variant_name => $string,
-                    )*
-                }
-            }
-        }
-        impl core::fmt::Display for $enum_name {
-            fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-                f.write_str(self.as_str())
-            }
-        }
-        impl core::str::FromStr for $enum_name {
-            type Err = ParseError;
-            fn from_str(s: &str) -> Result<Self, Self::Err> {
-                match s {
-                    $(
-                        $string => Ok(Self::$variant_name),
-                    )*
-                    _ => Err(ParseError(Self::PARSE_HELP))
-                }
-            }
-        }
-    };
-}
-
-strum! {
-#[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Default)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "schemars", derive(JsonSchema))]
-#[cfg_attr(feature = "serde", serde(rename_all = "lowercase"))]
-pub enum Level "<off|error|warn|info|debug|trace>" {
-    Off = "off",
-    Error = "error",
-    Warn = "warn",
-    #[default]
-    Info = "info",
-    Debug = "debug",
-    Trace = "trace",
-}}
-
-impl From<Level> for tracing_core::LevelFilter {
-    fn from(value: Level) -> Self {
-        match value {
-            Level::Off => Self::OFF,
-            Level::Error => Self::ERROR,
-            Level::Warn => Self::WARN,
-            Level::Info => Self::INFO,
-            Level::Debug => Self::DEBUG,
-            Level::Trace => Self::TRACE,
-        }
-    }
-}
 
 /// A totally dynamically configured [`tracing_subscriber::fmt::SubscriberBuilder`].
 pub type SubscriberBuilder<
@@ -313,10 +234,6 @@ pub enum Formatter {
     Json(Option<Json>),
 }
 
-impl Formatter {
-    pub const PARSE_HELP: &str = "<full|compact|pretty|json>";
-}
-
 impl FromStr for Formatter {
     type Err = ParseError;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -325,7 +242,7 @@ impl FromStr for Formatter {
             "compact" => Self::Compact,
             "pretty" => Self::Pretty,
             "json" => Self::Json(None),
-            _ => return Err(ParseError(Self::PARSE_HELP)),
+            _ => return Err(ParseError("one of `full`, `compact`, `pretty`, or `json`")),
         })
     }
 }
@@ -466,7 +383,7 @@ impl FromStr for Writer {
     }
 }
 
-strum! {
+strum_lite::strum! {
 /// How often to rotate the [`tracing_appender::rolling::RollingFileAppender`].
 ///
 /// See [`tracing_appender::rolling::Rotation`].
@@ -474,7 +391,7 @@ strum! {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "schemars", derive(JsonSchema))]
 #[cfg_attr(feature = "serde", serde(rename_all = "lowercase"))]
-pub enum Rotation "<minutely|hourly|daily|never>" {
+pub enum Rotation {
     Minutely = "minutely",
     Hourly = "hourly",
     Daily = "daily",
@@ -501,7 +418,7 @@ pub struct Roll {
     pub rotation: Option<Rotation>,
 }
 
-strum! {
+strum_lite::strum! {
 /// How the [`tracing_appender::non_blocking::NonBlocking`] should behave on a full queue.
 ///
 /// See [`tracing_appender::non_blocking::NonBlockingBuilder::lossy`].
@@ -509,18 +426,18 @@ strum! {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "schemars", derive(JsonSchema))]
 #[cfg_attr(feature = "serde", serde(rename_all = "lowercase"))]
-pub enum BackpressureBehaviour "<drop|block>" {
+pub enum BackpressureBehaviour {
     Drop = "drop",
     Block = "block",
 }}
 
-strum! {
+strum_lite::strum! {
 /// How to treat a newly created log file in [`Writer::File`].
 #[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Default)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "schemars", derive(JsonSchema))]
 #[cfg_attr(feature = "serde", serde(rename_all = "lowercase"))]
-pub enum FileOpenMode "<truncate|append>" {
+pub enum FileOpenMode {
     #[default]
     Truncate = "truncate",
     Append = "append",

@@ -818,6 +818,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7da8b5736845d9f2fcb837ea5d9e2628564b3b043a70948a3f0b778838c5fb4f"
 
 [[package]]
+name = "strum-lite"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cdbea1af582685244c1e75994dfedd9f2115d4a77714824320b774a2604c5da9"
+
+[[package]]
 name = "syn"
 version = "2.0.104"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -956,6 +962,7 @@ dependencies = [
  "serde_json",
  "serde_path_to_error",
  "serde_with",
+ "strum-lite",
  "thiserror 2.0.12",
  "tracing",
  "tracing-appender",
