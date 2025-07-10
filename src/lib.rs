@@ -429,7 +429,7 @@ pub enum Timer {
 }
 
 impl Timer {
-    pub const PARSE_HELP: &str = "<none| local[=FORMAT] | utc[=FORMAT] |system|uptime>";
+    pub const PARSE_HELP: &str = "<none | local[=FORMAT] | utc[=FORMAT] | system | uptime>";
 }
 
 impl FromStr for Timer {
@@ -493,7 +493,7 @@ pub enum Writer {
 }
 
 impl Writer {
-    pub const PARSE_HELP: &str = "<null|stdout|stderr| file=FILE | rolling=DIRECTORY>";
+    pub const PARSE_HELP: &str = "<null | stdout | stderr | file=FILE | rolling=DIRECTORY>";
 }
 
 impl FromStr for Writer {
