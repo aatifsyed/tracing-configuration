@@ -12,7 +12,8 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::{fmt, path::PathBuf, str::FromStr};
 use tracing_subscriber::EnvFilter;
 use winnow::{
-    combinator::{alt, preceded, rest},
+    combinator::{alt, preceded},
+    token::rest,
     Parser as _,
 };
 
@@ -435,7 +436,7 @@ impl Timer {
 impl FromStr for Timer {
     type Err = ParseError;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        alt::<_, _, winnow::error::ErrorKind, _>((
+        alt::<_, _, winnow::error::EmptyError, _>((
             "none".map(|_| Self::None),
             preceded("local=", rest).map(|it| Self::Local(Some(String::from(it)))),
             "local".map(|_| Self::Local(None)),
@@ -500,7 +501,7 @@ impl FromStr for Writer {
     type Err = ParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        alt::<_, _, winnow::error::ErrorKind, _>((
+        alt::<_, _, winnow::error::EmptyError, _>((
             alt(("null", "none")).map(|_| Self::Null),
             "stdout".map(|_| Self::Stdout),
             "stderr".map(|_| Self::Stderr),

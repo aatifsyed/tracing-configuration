@@ -9,9 +9,9 @@ repository = "https://github.com/aatifsyed/tracing-configuration"
 
 [dependencies]
 io-extra = "0.3.0"
-schemars = { version = "0.8.21", optional = true }
+schemars = { version = "1.0.4", optional = true }
 serde = { version = "1.0.197", features = ["derive"], optional = true }
-thiserror = "1.0.58"
+thiserror = "2.0.12"
 tracing-appender = "0.2.3"
 tracing-core = { version = "0.1.32", default-features = false }
 tracing-subscriber = { version = "0.3.18", features = [
@@ -22,10 +22,10 @@ tracing-subscriber = { version = "0.3.18", features = [
     "json",
     "std",
 ], default-features = false }
-winnow = "0.6.20"
+winnow = "0.7.11"
 
 [features]
-schemars = ["dep:schemars", "serde"]
+schemars = ["dep:schemars"]
 serde = ["dep:serde"]
 default = ["serde"]
 
@@ -37,4 +37,3 @@ json5 = "0.4.1"
 serde_json = "1.0.128"
 serde_path_to_error = "0.1.16"
 tracing = "0.1.40"
-winnow = "0.6.20"
