@@ -8,7 +8,9 @@ pub mod writer;
 #[cfg(feature = "schemars")]
 use schemars::JsonSchema;
 #[cfg(feature = "serde")]
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde::{Deserialize, Serialize};
+#[cfg(feature = "serde")]
+use serde_with::*;
 use std::{fmt, path::PathBuf, str::FromStr};
 use tracing_subscriber::EnvFilter;
 use winnow::{
@@ -20,7 +22,7 @@ use winnow::{
 use writer::Guard;
 
 /// Configuration for a totally dynamic subscriber.
-#[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Default)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "schemars", derive(JsonSchema))]
 pub struct Subscriber {
@@ -32,52 +34,21 @@ pub struct Subscriber {
     pub filter: Option<Filter>,
 }
 
-#[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Default)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "schemars", derive(JsonSchema))]
 pub struct Filter {
     #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
     pub regex: Option<bool>,
-    pub directives: Vec<Directive>,
-}
-
-#[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord)]
-#[cfg_attr(feature = "schemars", derive(JsonSchema))]
-pub struct Directive(String);
-
-impl Directive {
-    pub const PARSE_HELP: &str = "target[span{field=value}]=level";
-    fn directive(&self) -> tracing_subscriber::filter::Directive {
-        self.0.parse().unwrap()
-    }
-}
-
-impl FromStr for Directive {
-    type Err = tracing_subscriber::filter::ParseError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.parse::<tracing_subscriber::filter::Directive>() {
-            Ok(_) => Ok(Self(String::from(s))),
-            Err(e) => Err(e),
-        }
-    }
-}
-
-impl fmt::Display for Directive {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt::Display::fmt(&self.0, f)
-    }
-}
-#[cfg(feature = "serde")]
-impl<'de> Deserialize<'de> for Directive {
-    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        stringify::deserialize(d)
-    }
-}
-#[cfg(feature = "serde")]
-impl Serialize for Directive {
-    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        stringify::serialize(self, s)
-    }
+    #[cfg_attr(
+        feature = "serde",
+        serde(
+            skip_serializing_if = "Vec::is_empty",
+            with = "As::<Vec<DisplayFromStr>>"
+        )
+    )]
+    #[cfg_attr(feature = "schemars", schemars(with = "Vec<String>"))]
+    pub directives: Vec<tracing_subscriber::filter::Directive>,
 }
 
 impl From<Level> for EnvFilter {
@@ -85,46 +56,16 @@ impl From<Level> for EnvFilter {
         Self::new(value.as_str())
     }
 }
-
-impl From<Level> for Directive {
-    fn from(value: Level) -> Self {
-        value.as_str().parse().unwrap()
-    }
-}
-
 impl From<Filter> for EnvFilter {
     fn from(value: Filter) -> Self {
         let Filter { regex, directives } = value;
-        directives.into_iter().fold(
-            EnvFilter::builder()
-                .with_regex(regex.unwrap_or_default())
-                .parse_lossy(""),
-            |acc, el| acc.add_directive(el.directive()),
-        )
-    }
-}
-
-#[cfg(feature = "serde")]
-mod stringify {
-    use std::{borrow::Cow, fmt, str::FromStr};
-
-    use serde::{Deserialize, Deserializer, Serializer};
-
-    pub fn deserialize<'de, D: Deserializer<'de>, T>(d: D) -> Result<T, D::Error>
-    where
-        T: FromStr,
-        T::Err: fmt::Display,
-    {
-        #[derive(Deserialize)]
-        struct CowStr<'a>(#[serde(borrow)] Cow<'a, str>);
-        let CowStr(s) = Deserialize::deserialize(d)?;
-        s.parse().map_err(serde::de::Error::custom)
-    }
-    pub fn serialize<S: Serializer, T>(t: &T, s: S) -> Result<S::Ok, S::Error>
-    where
-        T: fmt::Display,
-    {
-        s.collect_str(t)
+        let mut builder = EnvFilter::builder();
+        if let Some(regex) = regex {
+            builder = builder.with_regex(regex)
+        }
+        directives
+            .into_iter()
+            .fold(builder.parse_lossy(""), EnvFilter::add_directive)
     }
 }
 

@@ -11,6 +11,7 @@ repository = "https://github.com/aatifsyed/tracing-configuration"
 io-extra = "0.3.0"
 schemars = { version = "1.0.4", optional = true }
 serde = { version = "1.0.197", features = ["derive"], optional = true }
+serde_with = { version = "3.14.0", optional = true }
 thiserror = "2.0.12"
 tracing-appender = "0.2.3"
 tracing-core = { version = "0.1.32", default-features = false }
@@ -26,7 +27,7 @@ winnow = "0.7.11"
 
 [features]
 schemars = ["dep:schemars"]
-serde = ["dep:serde"]
+serde = ["dep:serde", "dep:serde_with"]
 default = ["serde"]
 
 [dev-dependencies]
