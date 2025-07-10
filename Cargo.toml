@@ -27,9 +27,16 @@ tracing-subscriber = { version = "0.3.18", features = [
 winnow = "0.7.11"
 
 [features]
-schemars = ["dep:schemars"]
-serde = ["dep:serde", "dep:serde_with"]
 default = ["serde"]
+
+# These features track the latest versions of these crates.
+# Bumping them is not considered semver-breaking,
+# Use the versioned names if that's not desired.
+serde = ["serde1"]
+schemars = ["schemars1"]
+
+schemars1 = ["dep:schemars"]
+serde1 = ["dep:serde", "dep:serde_with"]
 
 [dev-dependencies]
 anyhow = "1.0.89"
