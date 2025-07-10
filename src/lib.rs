@@ -457,7 +457,7 @@ impl FromStr for Timer {
 #[cfg_attr(feature = "serde", serde(rename_all = "lowercase"))]
 pub struct File {
     pub path: PathBuf,
-    pub behaviour: FileOpenBehaviour,
+    pub mode: FileOpenMode,
     /// Wrap the writer in a [`tracing_appender::non_blocking::NonBlocking`].
     #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
     pub non_blocking: Option<NonBlocking>,
@@ -579,7 +579,7 @@ strum! {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "schemars", derive(JsonSchema))]
 #[cfg_attr(feature = "serde", serde(rename_all = "lowercase"))]
-pub enum FileOpenBehaviour "<truncate|append>" {
+pub enum FileOpenMode "<truncate|append>" {
     #[default]
     Truncate = "truncate",
     Append = "append",

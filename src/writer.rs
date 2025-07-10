@@ -97,12 +97,12 @@ impl MakeWriterInner {
         match writer {
             crate::Writer::File(crate::File {
                 path,
-                behaviour,
+                mode,
                 non_blocking,
             }) => {
-                match match behaviour {
-                    crate::FileOpenBehaviour::Truncate => File::create(&path),
-                    crate::FileOpenBehaviour::Append => File::options().append(true).open(&path),
+                match match mode {
+                    crate::FileOpenMode::Truncate => File::create(&path),
+                    crate::FileOpenMode::Append => File::options().append(true).open(&path),
                 } {
                     Ok(it) => match non_blocking {
                         Some(nb) => {
