@@ -18,7 +18,7 @@ use serde::{Deserialize, Serialize};
 #[cfg(feature = "serde1")]
 use serde_with::*;
 use std::{fmt, path::PathBuf, str::FromStr};
-use tracing_subscriber::{fmt::format::FmtSpan, EnvFilter};
+use tracing_subscriber::{filter::Filtered, fmt::format::FmtSpan, EnvFilter, Layer as _};
 use winnow::{
     combinator::{alt, preceded},
     token::rest,
@@ -92,7 +92,7 @@ pub type SubscriberBuilder<
 
 /// A totally dynamically configured [`tracing_subscriber::fmt::Layer`].
 pub type Layer<S, N = format::FormatFields, E = format::FormatEvent, W = writer::MakeWriter> =
-    tracing_subscriber::fmt::Layer<S, N, E, W>;
+    Filtered<tracing_subscriber::fmt::Layer<S, N, E, W>, EnvFilter, S>;
 
 impl Subscriber {
     #[expect(clippy::type_complexity)]
@@ -137,14 +137,15 @@ impl Subscriber {
     where
         S: tracing_core::Subscriber + for<'s> tracing_subscriber::registry::LookupSpan<'s>,
     {
-        let (writer, fields, event, _filter, guard, span_events) = self
+        let (writer, fields, event, filter, guard, span_events) = self
             .into_components(true)
             .expect("errors have been deferred");
         let layer = tracing_subscriber::fmt::layer()
             .with_span_events(span_events.unwrap_or(FmtSpan::NONE))
             .fmt_fields(fields)
             .event_format(event)
-            .with_writer(writer);
+            .with_writer(writer)
+            .with_filter(filter);
         (layer, guard)
     }
     /// Create a new [`Layer`], and a [`Guard`] that handles e.g flushing [`NonBlocking`] IO.
@@ -157,12 +158,13 @@ impl Subscriber {
     where
         S: tracing_core::Subscriber + for<'s> tracing_subscriber::registry::LookupSpan<'s>,
     {
-        let (writer, fields, event, _filter, guard, span_events) = self.into_components(false)?;
+        let (writer, fields, event, filter, guard, span_events) = self.into_components(false)?;
         let layer = tracing_subscriber::fmt::layer()
             .with_span_events(span_events.unwrap_or(FmtSpan::NONE))
             .fmt_fields(fields)
             .event_format(event)
-            .with_writer(writer);
+            .with_writer(writer)
+            .with_filter(filter);
         Ok((layer, guard))
     }
     /// Create a new [`SubscriberBuilder`], and a [`Guard`] that handles e.g flushing [`NonBlocking`] IO.
