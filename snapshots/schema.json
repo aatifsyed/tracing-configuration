@@ -1,5 +1,5 @@
 {
-  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Subscriber",
   "description": "Configuration for a totally dynamic subscriber.",
   "type": "object",
@@ -7,7 +7,7 @@
     "filter": {
       "anyOf": [
         {
-          "$ref": "#/definitions/Filter"
+          "$ref": "#/$defs/Filter"
         },
         {
           "type": "null"
@@ -17,7 +17,7 @@
     "format": {
       "anyOf": [
         {
-          "$ref": "#/definitions/Format"
+          "$ref": "#/$defs/Format"
         },
         {
           "type": "null"
@@ -27,7 +27,7 @@
     "writer": {
       "anyOf": [
         {
-          "$ref": "#/definitions/Writer"
+          "$ref": "#/$defs/Writer"
         },
         {
           "type": "null"
@@ -35,36 +35,71 @@
       ]
     }
   },
-  "definitions": {
+  "$defs": {
     "BackpressureBehaviour": {
       "description": "How the [`tracing_appender::non_blocking::NonBlocking`] should behave on a full queue.\n\nSee [`tracing_appender::non_blocking::NonBlockingBuilder::lossy`].",
-      "type": "string",
-      "enum": [
-        "drop",
-        "block"
+      "oneOf": [
+        {
+          "description": "String representation: `drop`",
+          "type": "string",
+          "const": "drop"
+        },
+        {
+          "description": "String representation: `block`",
+          "type": "string",
+          "const": "block"
+        }
       ]
     },
-    "Directive": {
-      "type": "string"
+    "File": {
+      "description": "Write to a [`File`](std::fs::File).",
+      "type": "object",
+      "properties": {
+        "mode": {
+          "$ref": "#/$defs/FileOpenMode"
+        },
+        "non_blocking": {
+          "description": "Wrap the writer in a [`tracing_appender::non_blocking::NonBlocking`].",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/NonBlocking"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "mode"
+      ]
     },
-    "FileOpenBehaviour": {
+    "FileOpenMode": {
       "description": "How to treat a newly created log file in [`Writer::File`].",
-      "type": "string",
-      "enum": [
-        "truncate",
-        "append"
+      "oneOf": [
+        {
+          "description": "String representation: `truncate`",
+          "type": "string",
+          "const": "truncate"
+        },
+        {
+          "description": "String representation: `append`",
+          "type": "string",
+          "const": "append"
+        }
       ]
     },
     "Filter": {
       "type": "object",
-      "required": [
-        "directives"
-      ],
       "properties": {
         "directives": {
           "type": "array",
           "items": {
-            "$ref": "#/definitions/Directive"
+            "type": "string"
           }
         },
         "regex": {
@@ -74,6 +109,18 @@
           ]
         }
       }
+    },
+    "FmtSpanItem": {
+      "type": "string",
+      "enum": [
+        "new",
+        "enter",
+        "exit",
+        "close",
+        "none",
+        "active",
+        "full"
+      ]
     },
     "Format": {
       "description": "Config for formatters.",
@@ -97,7 +144,7 @@
           "description": "Specific output formats.",
           "anyOf": [
             {
-              "$ref": "#/definitions/Formatter"
+              "$ref": "#/$defs/Formatter"
             },
             {
               "type": "null"
@@ -117,6 +164,16 @@
             "boolean",
             "null"
           ]
+        },
+        "span_events": {
+          "description": "What span events to emit.",
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "$ref": "#/$defs/FmtSpanItem"
+          }
         },
         "target": {
           "description": "See [`tracing_subscriber::fmt::SubscriberBuilder::with_target`].",
@@ -143,7 +200,7 @@
           "description": "What timing information to include.",
           "anyOf": [
             {
-              "$ref": "#/definitions/Timer"
+              "$ref": "#/$defs/Timer"
             },
             {
               "type": "null"
@@ -158,35 +215,26 @@
         {
           "description": "See [`tracing_subscriber::fmt::format::Full`].",
           "type": "string",
-          "enum": [
-            "full"
-          ]
+          "const": "full"
         },
         {
           "description": "See [`tracing_subscriber::fmt::format::Compact`].",
           "type": "string",
-          "enum": [
-            "compact"
-          ]
+          "const": "compact"
         },
         {
           "description": "See [`tracing_subscriber::fmt::format::Pretty`].",
           "type": "string",
-          "enum": [
-            "pretty"
-          ]
+          "const": "pretty"
         },
         {
           "description": "See [`tracing_subscriber::fmt::format::Json`].",
           "type": "object",
-          "required": [
-            "json"
-          ],
           "properties": {
             "json": {
               "anyOf": [
                 {
-                  "$ref": "#/definitions/Json"
+                  "$ref": "#/$defs/Json"
                 },
                 {
                   "type": "null"
@@ -194,7 +242,10 @@
               ]
             }
           },
-          "additionalProperties": false
+          "additionalProperties": false,
+          "required": [
+            "json"
+          ]
         }
       ]
     },
@@ -231,7 +282,7 @@
         "behaviour": {
           "anyOf": [
             {
-              "$ref": "#/definitions/BackpressureBehaviour"
+              "$ref": "#/$defs/BackpressureBehaviour"
             },
             {
               "type": "null"
@@ -245,11 +296,11 @@
             "null"
           ],
           "format": "uint",
-          "minimum": 0.0
+          "minimum": 0
         }
       }
     },
-    "Rolling": {
+    "Roll": {
       "description": "Config for [`tracing_appender::rolling::RollingFileAppender`].",
       "type": "object",
       "properties": {
@@ -260,7 +311,7 @@
             "null"
           ],
           "format": "uint",
-          "minimum": 0.0
+          "minimum": 0
         },
         "prefix": {
           "description": "See [`tracing_appender::rolling::Builder::filename_prefix`].",
@@ -273,7 +324,7 @@
           "description": "See [`tracing_appender::rolling::Builder::rotation`].",
           "anyOf": [
             {
-              "$ref": "#/definitions/Rotation"
+              "$ref": "#/$defs/Rotation"
             },
             {
               "type": "null"
@@ -289,14 +340,62 @@
         }
       }
     },
+    "Rolling": {
+      "description": "Use a [`tracing_appender::rolling::RollingFileAppender`].",
+      "type": "object",
+      "properties": {
+        "directory": {
+          "type": "string"
+        },
+        "non_blocking": {
+          "description": "Wrap the writer in a [`tracing_appender::non_blocking::NonBlocking`].",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/NonBlocking"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "roll": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Roll"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "directory"
+      ]
+    },
     "Rotation": {
       "description": "How often to rotate the [`tracing_appender::rolling::RollingFileAppender`].\n\nSee [`tracing_appender::rolling::Rotation`].",
-      "type": "string",
-      "enum": [
-        "minutely",
-        "hourly",
-        "daily",
-        "never"
+      "oneOf": [
+        {
+          "description": "String representation: `minutely`",
+          "type": "string",
+          "const": "minutely"
+        },
+        {
+          "description": "String representation: `hourly`",
+          "type": "string",
+          "const": "hourly"
+        },
+        {
+          "description": "String representation: `daily`",
+          "type": "string",
+          "const": "daily"
+        },
+        {
+          "description": "String representation: `never`",
+          "type": "string",
+          "const": "never"
+        }
       ]
     },
     "Timer": {
@@ -305,16 +404,11 @@
         {
           "description": "See [`tracing_subscriber::fmt::SubscriberBuilder::without_time`].",
           "type": "string",
-          "enum": [
-            "none"
-          ]
+          "const": "none"
         },
         {
           "description": "See [`tracing_subscriber::fmt::time::ChronoLocal`].",
           "type": "object",
-          "required": [
-            "local"
-          ],
           "properties": {
             "local": {
               "type": [
@@ -323,14 +417,14 @@
               ]
             }
           },
-          "additionalProperties": false
+          "additionalProperties": false,
+          "required": [
+            "local"
+          ]
         },
         {
           "description": "See [`tracing_subscriber::fmt::time::ChronoUtc`].",
           "type": "object",
-          "required": [
-            "utc"
-          ],
           "properties": {
             "utc": {
               "type": [
@@ -339,21 +433,20 @@
               ]
             }
           },
-          "additionalProperties": false
+          "additionalProperties": false,
+          "required": [
+            "utc"
+          ]
         },
         {
           "description": "See [`tracing_subscriber::fmt::time::SystemTime`].",
           "type": "string",
-          "enum": [
-            "system"
-          ]
+          "const": "system"
         },
         {
           "description": "See [`tracing_subscriber::fmt::time::Uptime`].",
           "type": "string",
-          "enum": [
-            "uptime"
-          ]
+          "const": "uptime"
         }
       ]
     },
@@ -363,101 +456,41 @@
         {
           "description": "No writer.",
           "type": "string",
-          "enum": [
-            "null"
-          ]
+          "const": "null"
         },
         {
           "description": "Use [`io::stdout`](std::io::stdout).",
           "type": "string",
-          "enum": [
-            "stdout"
-          ]
+          "const": "stdout"
         },
         {
           "description": "Use [`io::stderr`](std::io::stderr).",
           "type": "string",
-          "enum": [
-            "stderr"
+          "const": "stderr"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "file": {
+              "$ref": "#/$defs/File"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "file"
           ]
         },
         {
-          "description": "Write to a [`File`](std::fs::File).",
           "type": "object",
-          "required": [
-            "file"
-          ],
-          "properties": {
-            "file": {
-              "type": "object",
-              "required": [
-                "behaviour",
-                "path"
-              ],
-              "properties": {
-                "behaviour": {
-                  "$ref": "#/definitions/FileOpenBehaviour"
-                },
-                "non_blocking": {
-                  "description": "Wrap the writer in a [`tracing_appender::non_blocking::NonBlocking`].",
-                  "anyOf": [
-                    {
-                      "$ref": "#/definitions/NonBlocking"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
-                },
-                "path": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "additionalProperties": false
-        },
-        {
-          "description": "Use a [`tracing_appender::rolling::RollingFileAppender`].",
-          "type": "object",
-          "required": [
-            "rolling"
-          ],
           "properties": {
             "rolling": {
-              "type": "object",
-              "required": [
-                "directory"
-              ],
-              "properties": {
-                "directory": {
-                  "type": "string"
-                },
-                "non_blocking": {
-                  "description": "Wrap the writer in a [`tracing_appender::non_blocking::NonBlocking`].",
-                  "anyOf": [
-                    {
-                      "$ref": "#/definitions/NonBlocking"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
-                },
-                "rolling": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/definitions/Rolling"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
-                }
-              }
+              "$ref": "#/$defs/Rolling"
             }
           },
-          "additionalProperties": false
+          "additionalProperties": false,
+          "required": [
+            "rolling"
+          ]
         }
       ]
     }
