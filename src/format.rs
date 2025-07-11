@@ -73,6 +73,7 @@ impl From<crate::Format> for FormatEventInner {
             line_number,
             formatter,
             timer,
+            span_events: _, // handled out-of-band
         } = value;
 
         let orig = Format::default().with_timer(FormatTime::from(timer.unwrap_or_default()));

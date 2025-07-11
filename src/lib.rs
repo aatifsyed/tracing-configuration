@@ -18,7 +18,7 @@ use serde::{Deserialize, Serialize};
 #[cfg(feature = "serde1")]
 use serde_with::*;
 use std::{fmt, path::PathBuf, str::FromStr};
-use tracing_subscriber::EnvFilter;
+use tracing_subscriber::{fmt::format::FmtSpan, EnvFilter};
 use winnow::{
     combinator::{alt, preceded},
     token::rest,
@@ -49,6 +49,7 @@ pub struct Filter {
     #[cfg_attr(
         feature = "serde1",
         serde(
+            default,
             skip_serializing_if = "Vec::is_empty",
             with = "As::<Vec<DisplayFromStr>>"
         )
@@ -94,6 +95,7 @@ pub type Layer<S, N = format::FormatFields, E = format::FormatEvent, W = writer:
     tracing_subscriber::fmt::Layer<S, N, E, W>;
 
 impl Subscriber {
+    #[expect(clippy::type_complexity)]
     fn into_components(
         self,
         defer: bool,
@@ -104,6 +106,7 @@ impl Subscriber {
             format::FormatEvent,
             EnvFilter,
             Guard,
+            Option<FmtSpan>,
         ),
         writer::Error,
     > {
@@ -112,16 +115,17 @@ impl Subscriber {
             writer,
             filter,
         } = self;
-        let format = format.unwrap_or_default();
+        let mut format = format.unwrap_or_default();
         let writer = writer.unwrap_or_default();
         let (writer, guard) = match defer {
             true => writer::MakeWriter::try_new(writer)?,
             false => writer::MakeWriter::new(writer),
         };
         let fields = format::FormatFields::from(format.formatter.clone().unwrap_or_default());
+        let span_events = format.span_events.take();
         let event = format::FormatEvent::from(format);
         let filter = EnvFilter::from(filter.unwrap_or_default());
-        Ok((writer, fields, event, filter, guard))
+        Ok((writer, fields, event, filter, guard, span_events))
     }
     /// Create a new [`Layer`], and a [`Guard`] that handles e.g flushing [`NonBlocking`] IO.
     ///
@@ -133,10 +137,11 @@ impl Subscriber {
     where
         S: tracing_core::Subscriber + for<'s> tracing_subscriber::registry::LookupSpan<'s>,
     {
-        let (writer, fields, event, _filter, guard) = self
+        let (writer, fields, event, _filter, guard, span_events) = self
             .into_components(true)
             .expect("errors have been deferred");
         let layer = tracing_subscriber::fmt::layer()
+            .with_span_events(span_events.unwrap_or(FmtSpan::NONE))
             .fmt_fields(fields)
             .event_format(event)
             .with_writer(writer);
@@ -152,8 +157,9 @@ impl Subscriber {
     where
         S: tracing_core::Subscriber + for<'s> tracing_subscriber::registry::LookupSpan<'s>,
     {
-        let (writer, fields, event, _filter, guard) = self.into_components(false)?;
+        let (writer, fields, event, _filter, guard, span_events) = self.into_components(false)?;
         let layer = tracing_subscriber::fmt::layer()
+            .with_span_events(span_events.unwrap_or(FmtSpan::NONE))
             .fmt_fields(fields)
             .event_format(event)
             .with_writer(writer);
@@ -164,10 +170,11 @@ impl Subscriber {
     /// Errors when opening files or directories are deferred for the subscriber to handle (typically by logging).
     /// If you wish to handle them yourself, see [`Self::try_builder`].
     pub fn builder(self) -> (SubscriberBuilder, Guard) {
-        let (writer, fields, event, filter, guard) = self
+        let (writer, fields, event, filter, guard, span_events) = self
             .into_components(true)
             .expect("errors have been deferred");
         let builder = tracing_subscriber::fmt()
+            .with_span_events(span_events.unwrap_or(FmtSpan::NONE))
             .fmt_fields(fields)
             .event_format(event)
             .with_writer(writer)
@@ -179,8 +186,9 @@ impl Subscriber {
     /// Returns [`Err`] if e.g opening a log file fails.
     /// If you wish the subscriber to handle them (typically by logging), see [`Self::builder`].
     pub fn try_builder(self) -> Result<(SubscriberBuilder, Guard), writer::Error> {
-        let (writer, fields, event, filter, guard) = self.into_components(false)?;
+        let (writer, fields, event, filter, guard, span_events) = self.into_components(false)?;
         let builder = tracing_subscriber::fmt()
+            .with_span_events(span_events.unwrap_or(FmtSpan::NONE))
             .fmt_fields(fields)
             .event_format(event)
             .with_writer(writer)
@@ -190,7 +198,7 @@ impl Subscriber {
 }
 
 /// Config for formatters.
-#[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Default)]
 #[cfg_attr(feature = "serde1", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "schemars1", derive(JsonSchema))]
 pub struct Format {
@@ -221,6 +229,76 @@ pub struct Format {
     /// What timing information to include.
     #[cfg_attr(feature = "serde1", serde(skip_serializing_if = "Option::is_none"))]
     pub timer: Option<Timer>,
+    /// What span events to emit.
+    #[cfg_attr(
+        feature = "serde1",
+        serde(
+            default,
+            skip_serializing_if = "Option::is_none",
+            with = "As::<Option<VecFmtSpan>>"
+        )
+    )]
+    #[cfg_attr(feature = "schemars1", schemars(with = "Option<Vec<FmtSpanItem>>"))]
+    pub span_events: Option<FmtSpan>,
+}
+
+#[cfg(feature = "serde1")]
+struct VecFmtSpan;
+#[cfg(feature = "serde1")]
+impl<'de> DeserializeAs<'de, FmtSpan> for VecFmtSpan {
+    fn deserialize_as<D: serde::Deserializer<'de>>(d: D) -> Result<FmtSpan, D::Error> {
+        Ok(Vec::<FmtSpanItem>::deserialize(d)?
+            .into_iter()
+            .fold(FmtSpan::NONE, |acc, el| {
+                acc & match el {
+                    FmtSpanItem::New => FmtSpan::NEW,
+                    FmtSpanItem::Enter => FmtSpan::ENTER,
+                    FmtSpanItem::Exit => FmtSpan::EXIT,
+                    FmtSpanItem::Close => FmtSpan::CLOSE,
+                    FmtSpanItem::None => FmtSpan::NONE,
+                    FmtSpanItem::Active => FmtSpan::ACTIVE,
+                    FmtSpanItem::Full => FmtSpan::FULL,
+                }
+            }))
+    }
+}
+#[cfg(feature = "serde1")]
+impl SerializeAs<FmtSpan> for VecFmtSpan {
+    fn serialize_as<S: serde::Serializer>(source: &FmtSpan, s: S) -> Result<S::Ok, S::Error> {
+        match source.clone() {
+            FmtSpan::NONE => [FmtSpanItem::None].serialize(s),
+            FmtSpan::ACTIVE => [FmtSpanItem::Active].serialize(s),
+            FmtSpan::FULL => [FmtSpanItem::Full].serialize(s),
+            _ => {
+                let mut v = vec![];
+                for (theirs, ours) in [
+                    (FmtSpan::NEW, FmtSpanItem::New),
+                    (FmtSpan::ENTER, FmtSpanItem::Enter),
+                    (FmtSpan::EXIT, FmtSpanItem::Exit),
+                    (FmtSpan::CLOSE, FmtSpanItem::Close),
+                ] {
+                    if source.clone() & theirs.clone() == theirs {
+                        v.push(ours)
+                    }
+                }
+                v.serialize(s)
+            }
+        }
+    }
+}
+
+#[cfg(feature = "serde1")]
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+#[cfg_attr(feature = "schemars1", derive(JsonSchema))]
+enum FmtSpanItem {
+    New,
+    Enter,
+    Exit,
+    Close,
+    None,
+    Active,
+    Full,
 }
 
 /// The specific output format.
@@ -525,7 +603,7 @@ strum_lite::strum! {
 #[cfg_attr(feature = "serde1", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "schemars1", derive(JsonSchema))]
 #[cfg_attr(feature = "serde1", serde(rename_all = "lowercase"))]
-#[cfg_attr(feature = "clap", derive(ValueEnum))]
+#[cfg_attr(feature = "clap4", derive(ValueEnum))]
 pub enum BackpressureBehaviour {
     Drop = "drop",
     Block = "block",
@@ -537,7 +615,7 @@ strum_lite::strum! {
 #[cfg_attr(feature = "serde1", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "schemars1", derive(JsonSchema))]
 #[cfg_attr(feature = "serde1", serde(rename_all = "lowercase"))]
-#[cfg_attr(feature = "clap", derive(ValueEnum))]
+#[cfg_attr(feature = "clap4", derive(ValueEnum))]
 pub enum FileOpenMode {
     #[default]
     Truncate = "truncate",
