@@ -2,6 +2,7 @@
 //! for serializable, dynamic configuration, at the cost of compile-time specialization.
 
 pub mod format;
+pub mod otel;
 pub mod time;
 pub mod writer;
 
@@ -13,9 +14,8 @@ use clap::{
 };
 #[cfg(feature = "schemars1")]
 use schemars::JsonSchema;
-#[cfg(feature = "serde1")]
-use serde::{Deserialize, Serialize};
-#[cfg(feature = "serde1")]
+
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_with::*;
 use std::{fmt, path::PathBuf, str::FromStr};
 use tracing_subscriber::{filter::Filtered, fmt::format::FmtSpan, EnvFilter, Layer as _};
@@ -27,32 +27,42 @@ use winnow::{
 
 use writer::Guard;
 
+fn _serde_from_str<T: DeserializeOwned>(s: &str) -> Result<T, serde::de::value::Error> {
+    T::deserialize(serde::de::value::StrDeserializer::new(s))
+}
+
+macro_rules! serde_from_str {
+    ($ty:ty) => {
+        impl FromStr for $ty {
+            type Err = serde::de::value::Error;
+            fn from_str(s: &str) -> Result<Self, Self::Err> {
+                $crate::_serde_from_str(s)
+            }
+        }
+    };
+}
+
 /// Configuration for a totally dynamic subscriber.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Default)]
-#[cfg_attr(feature = "serde1", derive(Serialize, Deserialize))]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Default, Serialize, Deserialize)]
 #[cfg_attr(feature = "schemars1", derive(JsonSchema))]
 pub struct Subscriber {
-    #[cfg_attr(feature = "serde1", serde(skip_serializing_if = "Option::is_none"))]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub format: Option<Format>,
-    #[cfg_attr(feature = "serde1", serde(skip_serializing_if = "Option::is_none"))]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub writer: Option<Writer>,
-    #[cfg_attr(feature = "serde1", serde(skip_serializing_if = "Option::is_none"))]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub filter: Option<Filter>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Default)]
-#[cfg_attr(feature = "serde1", derive(Serialize, Deserialize))]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Default, Serialize, Deserialize)]
 #[cfg_attr(feature = "schemars1", derive(JsonSchema))]
 pub struct Filter {
-    #[cfg_attr(feature = "serde1", serde(skip_serializing_if = "Option::is_none"))]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub regex: Option<bool>,
-    #[cfg_attr(
-        feature = "serde1",
-        serde(
-            default,
-            skip_serializing_if = "Vec::is_empty",
-            with = "As::<Vec<DisplayFromStr>>"
-        )
+    #[serde(
+        default,
+        skip_serializing_if = "Vec::is_empty",
+        with = "As::<Vec<DisplayFromStr>>"
     )]
     #[cfg_attr(feature = "schemars1", schemars(with = "Vec<String>"))]
     pub directives: Vec<tracing_subscriber::filter::Directive>,
@@ -200,53 +210,48 @@ impl Subscriber {
 }
 
 /// Config for formatters.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Default)]
-#[cfg_attr(feature = "serde1", derive(Serialize, Deserialize))]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Default, Serialize, Deserialize)]
 #[cfg_attr(feature = "schemars1", derive(JsonSchema))]
 pub struct Format {
     /// See [`tracing_subscriber::fmt::SubscriberBuilder::with_ansi`].
-    #[cfg_attr(feature = "serde1", serde(skip_serializing_if = "Option::is_none"))]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub ansi: Option<bool>,
     /// See [`tracing_subscriber::fmt::SubscriberBuilder::with_target`].
-    #[cfg_attr(feature = "serde1", serde(skip_serializing_if = "Option::is_none"))]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub target: Option<bool>,
     /// See [`tracing_subscriber::fmt::SubscriberBuilder::with_level`].
-    #[cfg_attr(feature = "serde1", serde(skip_serializing_if = "Option::is_none"))]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub level: Option<bool>,
     /// See [`tracing_subscriber::fmt::SubscriberBuilder::with_thread_ids`].
-    #[cfg_attr(feature = "serde1", serde(skip_serializing_if = "Option::is_none"))]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub thread_ids: Option<bool>,
     /// See [`tracing_subscriber::fmt::SubscriberBuilder::with_thread_names`].
-    #[cfg_attr(feature = "serde1", serde(skip_serializing_if = "Option::is_none"))]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub thread_names: Option<bool>,
     /// See [`tracing_subscriber::fmt::SubscriberBuilder::with_file`].
-    #[cfg_attr(feature = "serde1", serde(skip_serializing_if = "Option::is_none"))]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub file: Option<bool>,
     /// See [`tracing_subscriber::fmt::SubscriberBuilder::with_line_number`].
-    #[cfg_attr(feature = "serde1", serde(skip_serializing_if = "Option::is_none"))]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub line_number: Option<bool>,
     /// Specific output formats.
-    #[cfg_attr(feature = "serde1", serde(skip_serializing_if = "Option::is_none"))]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub formatter: Option<Formatter>,
     /// What timing information to include.
-    #[cfg_attr(feature = "serde1", serde(skip_serializing_if = "Option::is_none"))]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub timer: Option<Timer>,
     /// What span events to emit.
-    #[cfg_attr(
-        feature = "serde1",
-        serde(
-            default,
-            skip_serializing_if = "Option::is_none",
-            with = "As::<Option<VecFmtSpan>>"
-        )
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        with = "As::<Option<VecFmtSpan>>"
     )]
     #[cfg_attr(feature = "schemars1", schemars(with = "Option<Vec<FmtSpanItem>>"))]
     pub span_events: Option<FmtSpan>,
 }
 
-#[cfg(feature = "serde1")]
 struct VecFmtSpan;
-#[cfg(feature = "serde1")]
+
 impl<'de> DeserializeAs<'de, FmtSpan> for VecFmtSpan {
     fn deserialize_as<D: serde::Deserializer<'de>>(d: D) -> Result<FmtSpan, D::Error> {
         Ok(Vec::<FmtSpanItem>::deserialize(d)?
@@ -264,7 +269,7 @@ impl<'de> DeserializeAs<'de, FmtSpan> for VecFmtSpan {
             }))
     }
 }
-#[cfg(feature = "serde1")]
+
 impl SerializeAs<FmtSpan> for VecFmtSpan {
     fn serialize_as<S: serde::Serializer>(source: &FmtSpan, s: S) -> Result<S::Ok, S::Error> {
         match source.clone() {
@@ -289,9 +294,8 @@ impl SerializeAs<FmtSpan> for VecFmtSpan {
     }
 }
 
-#[cfg(feature = "serde1")]
 #[derive(Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
+#[serde(rename_all = "kebab-case")]
 #[cfg_attr(feature = "schemars1", derive(JsonSchema))]
 enum FmtSpanItem {
     New,
@@ -304,10 +308,9 @@ enum FmtSpanItem {
 }
 
 /// The specific output format.
-#[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Default)]
-#[cfg_attr(feature = "serde1", derive(Serialize, Deserialize))]
+#[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Default, Serialize, Deserialize)]
 #[cfg_attr(feature = "schemars1", derive(JsonSchema))]
-#[cfg_attr(feature = "serde1", serde(rename_all = "lowercase"))]
+#[serde(rename_all = "kebab-case")]
 pub enum Formatter {
     /// See [`tracing_subscriber::fmt::format::Full`].
     #[default]
@@ -353,39 +356,31 @@ impl ValueEnum for Formatter {
     }
 }
 
-#[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Default)]
-#[cfg_attr(feature = "serde1", derive(Serialize, Deserialize))]
+#[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Default, Serialize, Deserialize)]
 #[cfg_attr(feature = "schemars1", derive(JsonSchema))]
 pub struct Json {
     /// See [`tracing_subscriber::fmt::format::Json::flatten_event`].
-    #[cfg_attr(feature = "serde1", serde(skip_serializing_if = "Option::is_none"))]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub flatten_event: Option<bool>,
     /// See [`tracing_subscriber::fmt::format::Json::with_current_span`].
-    #[cfg_attr(feature = "serde1", serde(skip_serializing_if = "Option::is_none"))]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub current_span: Option<bool>,
     /// See [`tracing_subscriber::fmt::format::Json::with_span_list`].
-    #[cfg_attr(feature = "serde1", serde(skip_serializing_if = "Option::is_none"))]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub span_list: Option<bool>,
 }
 
 /// Which timer implementation to use.
-#[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Default)]
-#[cfg_attr(feature = "serde1", derive(Serialize, Deserialize))]
+#[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Default, Serialize, Deserialize)]
 #[cfg_attr(feature = "schemars1", derive(JsonSchema))]
-#[cfg_attr(feature = "serde1", serde(rename_all = "lowercase"))]
+#[serde(rename_all = "kebab-case")]
 pub enum Timer {
     /// See [`tracing_subscriber::fmt::SubscriberBuilder::without_time`].
     None,
     /// See [`tracing_subscriber::fmt::time::ChronoLocal`].
-    Local(
-        #[cfg_attr(feature = "serde1", serde(skip_serializing_if = "Option::is_none"))]
-        Option<String>,
-    ),
+    Local(#[serde(skip_serializing_if = "Option::is_none")] Option<String>),
     /// See [`tracing_subscriber::fmt::time::ChronoUtc`].
-    Utc(
-        #[cfg_attr(feature = "serde1", serde(skip_serializing_if = "Option::is_none"))]
-        Option<String>,
-    ),
+    Utc(#[serde(skip_serializing_if = "Option::is_none")] Option<String>),
     /// See [`tracing_subscriber::fmt::time::SystemTime`].
     #[default]
     System,
@@ -446,36 +441,33 @@ impl ValueEnum for Timer {
 }
 
 /// Write to a [`File`](std::fs::File).
-#[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Default)]
-#[cfg_attr(feature = "serde1", derive(Serialize, Deserialize))]
+#[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Default, Serialize, Deserialize)]
 #[cfg_attr(feature = "schemars1", derive(JsonSchema))]
-#[cfg_attr(feature = "serde1", serde(rename_all = "lowercase"))]
+#[serde(rename_all = "kebab-case")]
 pub struct File {
     pub path: PathBuf,
     pub mode: FileOpenMode,
     /// Wrap the writer in a [`tracing_appender::non_blocking::NonBlocking`].
-    #[cfg_attr(feature = "serde1", serde(skip_serializing_if = "Option::is_none"))]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub non_blocking: Option<NonBlocking>,
 }
 
-#[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Default)]
-#[cfg_attr(feature = "serde1", derive(Serialize, Deserialize))]
+#[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Default, Serialize, Deserialize)]
 #[cfg_attr(feature = "schemars1", derive(JsonSchema))]
-#[cfg_attr(feature = "serde1", serde(rename_all = "lowercase"))]
+#[serde(rename_all = "kebab-case")]
 /// Use a [`tracing_appender::rolling::RollingFileAppender`].
 pub struct Rolling {
     pub directory: PathBuf,
     pub roll: Option<Roll>,
     /// Wrap the writer in a [`tracing_appender::non_blocking::NonBlocking`].
-    #[cfg_attr(feature = "serde1", serde(skip_serializing_if = "Option::is_none"))]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub non_blocking: Option<NonBlocking>,
 }
 
 /// Which writer to use.
-#[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Default)]
-#[cfg_attr(feature = "serde1", derive(Serialize, Deserialize))]
+#[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Default, Serialize, Deserialize)]
 #[cfg_attr(feature = "schemars1", derive(JsonSchema))]
-#[cfg_attr(feature = "serde1", serde(rename_all = "lowercase"))]
+#[serde(rename_all = "kebab-case")]
 pub enum Writer {
     /// No writer.
     Null,
@@ -561,79 +553,77 @@ impl ValueParserFactory for Writer {
     }
 }
 
-strum_lite::strum! {
 /// How often to rotate the [`tracing_appender::rolling::RollingFileAppender`].
 ///
 /// See [`tracing_appender::rolling::Rotation`].
-#[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Default)]
-#[cfg_attr(feature = "serde1", derive(Serialize, Deserialize))]
+#[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Default, Serialize, Deserialize)]
 #[cfg_attr(feature = "schemars1", derive(JsonSchema))]
-#[cfg_attr(feature = "serde1", serde(rename_all = "lowercase"))]
+#[serde(rename_all = "kebab-case")]
 #[cfg_attr(feature = "clap4", derive(ValueEnum))]
 pub enum Rotation {
-    Minutely = "minutely",
-    Hourly = "hourly",
-    Daily = "daily",
+    Minutely,
+    Hourly,
+    Daily,
     #[default]
-    Never = "never",
-}}
+    Never,
+}
+
+serde_from_str!(Rotation);
 
 /// Config for [`tracing_appender::rolling::RollingFileAppender`].
-#[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Default)]
-#[cfg_attr(feature = "serde1", derive(Serialize, Deserialize))]
+#[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Default, Serialize, Deserialize)]
 #[cfg_attr(feature = "schemars1", derive(JsonSchema))]
 pub struct Roll {
     /// See [`tracing_appender::rolling::Builder::max_log_files`].
-    #[cfg_attr(feature = "serde1", serde(skip_serializing_if = "Option::is_none"))]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub limit: Option<usize>,
     /// See [`tracing_appender::rolling::Builder::filename_prefix`].
-    #[cfg_attr(feature = "serde1", serde(skip_serializing_if = "Option::is_none"))]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub prefix: Option<String>,
     /// See [`tracing_appender::rolling::Builder::filename_suffix`].
-    #[cfg_attr(feature = "serde1", serde(skip_serializing_if = "Option::is_none"))]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub suffix: Option<String>,
     /// See [`tracing_appender::rolling::Builder::rotation`].
-    #[cfg_attr(feature = "serde1", serde(skip_serializing_if = "Option::is_none"))]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub rotation: Option<Rotation>,
 }
 
-strum_lite::strum! {
 /// How the [`tracing_appender::non_blocking::NonBlocking`] should behave on a full queue.
 ///
 /// See [`tracing_appender::non_blocking::NonBlockingBuilder::lossy`].
-#[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord)]
-#[cfg_attr(feature = "serde1", derive(Serialize, Deserialize))]
+#[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[cfg_attr(feature = "schemars1", derive(JsonSchema))]
-#[cfg_attr(feature = "serde1", serde(rename_all = "lowercase"))]
+#[serde(rename_all = "kebab-case")]
 #[cfg_attr(feature = "clap4", derive(ValueEnum))]
 pub enum BackpressureBehaviour {
-    Drop = "drop",
-    Block = "block",
-}}
+    Drop,
+    Block,
+}
 
-strum_lite::strum! {
+serde_from_str!(BackpressureBehaviour);
+
 /// How to treat a newly created log file in [`Writer::File`].
-#[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Default)]
-#[cfg_attr(feature = "serde1", derive(Serialize, Deserialize))]
+#[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Default, Serialize, Deserialize)]
 #[cfg_attr(feature = "schemars1", derive(JsonSchema))]
-#[cfg_attr(feature = "serde1", serde(rename_all = "lowercase"))]
+#[serde(rename_all = "kebab-case")]
 #[cfg_attr(feature = "clap4", derive(ValueEnum))]
 pub enum FileOpenMode {
     #[default]
-    Truncate = "truncate",
-    Append = "append",
-}}
+    Truncate,
+    Append,
+}
+
+serde_from_str!(FileOpenMode);
 
 /// Configuration for [`tracing_appender::non_blocking::NonBlocking`].
-#[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Default)]
-#[cfg_attr(feature = "serde1", derive(Serialize, Deserialize))]
+#[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Default, Serialize, Deserialize)]
 #[cfg_attr(feature = "schemars1", derive(JsonSchema))]
-#[cfg_attr(feature = "serde1", serde(rename_all = "lowercase"))]
+#[serde(rename_all = "kebab-case")]
 pub struct NonBlocking {
     /// See [`tracing_appender::non_blocking::NonBlockingBuilder::buffered_lines_limit`].
-    #[cfg_attr(feature = "serde1", serde(skip_serializing_if = "Option::is_none"))]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub buffer_length: Option<usize>,
-    #[cfg_attr(feature = "serde1", serde(skip_serializing_if = "Option::is_none"))]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub behaviour: Option<BackpressureBehaviour>,
 }
 

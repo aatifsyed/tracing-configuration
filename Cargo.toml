@@ -10,9 +10,8 @@ repository = "https://github.com/aatifsyed/tracing-configuration"
 [dependencies]
 io-extra = "0.3.0"
 schemars = { version = "1.0.4", optional = true }
-serde = { version = "1.0.197", features = ["derive"], optional = true }
-serde_with = { version = "3.14.0", optional = true }
-strum-lite = "0.1.1"
+serde = { version = "1.0.197", features = ["derive"] }
+serde_with = { version = "3.14.0" }
 thiserror = "2.0.12"
 tracing-appender = "0.2.3"
 tracing-core = { version = "0.1.32", default-features = false }
@@ -24,8 +23,15 @@ tracing-subscriber = { version = "0.3.18", features = [
     "json",
     "std",
 ], default-features = false }
-winnow = "0.7.11"
-clap = { version = "4.5.41", optional = true, default-features = false, features = ["derive", "std"] }
+clap = { version = "4.5.41", optional = true, default-features = false, features = [
+    "derive",
+    "std",
+] }
+opentelemetry-otlp = { version = "0.31.0" }
+opentelemetry_sdk = "0.31.0"
+winnow = "0.7.14"
+opentelemetry = "0.31.0"
+tracing-opentelemetry = "0.32.0"
 
 [features]
 default = []
@@ -33,12 +39,10 @@ default = []
 # These features track the latest versions of these crates.
 # Bumping them is not considered semver-breaking,
 # Use the versioned names if that's not desired.
-serde = ["serde1"]
 schemars = ["schemars1"]
 clap = ["clap4"]
 
-schemars1 = ["dep:schemars", "serde1"]
-serde1 = ["dep:serde", "dep:serde_with"]
+schemars1 = ["dep:schemars"]
 clap4 = ["dep:clap"]
 
 [dev-dependencies]
