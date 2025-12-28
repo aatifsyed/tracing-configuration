@@ -339,11 +339,13 @@ impl Meter {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[cfg_attr(feature = "schemars1", derive(JsonSchema))]
 #[serde(rename_all = "kebab-case")]
 pub struct MetricExporter {
+    #[serde(default)]
     pub http: HttpConfig,
+    #[serde(default)]
     pub export: ExportConfig,
     pub temporality: Option<Temporality>,
     pub interval: Option<Duration>,
