@@ -20,6 +20,9 @@ use opentelemetry_sdk::{
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_with::*;
+use tracing_core::Subscriber;
+use tracing_opentelemetry::{MetricsLayer, OpenTelemetryLayer};
+use tracing_subscriber::registry::LookupSpan;
 
 use crate::ParseError;
 
@@ -40,12 +43,22 @@ impl Tracer {
             .builder()
             .map(|b| b.build().tracer_with_scope(scope.builder().build()))
     }
+
+    pub fn layer<S>(
+        self,
+    ) -> Result<OpenTelemetryLayer<S, opentelemetry_sdk::trace::Tracer>, ExporterBuildError>
+    where
+        S: Subscriber + for<'any> LookupSpan<'any>,
+    {
+        self.build().map(|it| OpenTelemetryLayer::new(it))
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[cfg_attr(feature = "schemars1", derive(JsonSchema))]
 #[serde(rename_all = "kebab-case")]
 pub struct InstrumentationScope {
+    #[serde(default)]
     pub name: String,
     pub version: Option<String>,
     pub schema_url: Option<String>,
@@ -381,6 +394,14 @@ impl MeterProvider {
             MeterProviderBuilder::default().with_resource(resource.builder().build()),
             |acc, el| el.builder().map(|it| acc.with_reader(it.build())),
         )
+    }
+    pub fn layer<S>(
+        self,
+    ) -> Result<MetricsLayer<S, opentelemetry_sdk::metrics::SdkMeterProvider>, ExporterBuildError>
+    where
+        S: Subscriber + for<'any> LookupSpan<'any>,
+    {
+        self.builder().map(|it| MetricsLayer::new(it.build()))
     }
 }
 
