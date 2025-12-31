@@ -14,7 +14,7 @@ use opentelemetry_otlp::{
 use opentelemetry_sdk::{
     metrics::{MeterProviderBuilder, PeriodicReader, PeriodicReaderBuilder},
     resource::ResourceBuilder,
-    trace::TracerProviderBuilder,
+    trace::{SdkTracerProvider, TracerProviderBuilder},
 };
 #[cfg(feature = "schemars1")]
 use schemars::JsonSchema;
@@ -37,20 +37,30 @@ pub struct Tracer {
 }
 
 impl Tracer {
-    pub fn build(self) -> Result<opentelemetry_sdk::trace::Tracer, ExporterBuildError> {
+    pub fn build(
+        self,
+    ) -> Result<(opentelemetry_sdk::trace::Tracer, SdkTracerProvider), ExporterBuildError> {
         let Self { provider, scope } = self;
-        provider
-            .builder()
-            .map(|b| b.build().tracer_with_scope(scope.builder().build()))
+        provider.builder().map(|b| {
+            let p = b.build();
+            (p.tracer_with_scope(scope.builder().build()), p)
+        })
     }
 
     pub fn layer<S>(
         self,
-    ) -> Result<OpenTelemetryLayer<S, opentelemetry_sdk::trace::Tracer>, ExporterBuildError>
+    ) -> Result<
+        (
+            OpenTelemetryLayer<S, opentelemetry_sdk::trace::Tracer>,
+            SdkTracerProvider,
+        ),
+        ExporterBuildError,
+    >
     where
         S: Subscriber + for<'any> LookupSpan<'any>,
     {
-        self.build().map(|it| OpenTelemetryLayer::new(it))
+        self.build()
+            .map(|(trc, p)| (OpenTelemetryLayer::new(trc), p))
     }
 }
 
