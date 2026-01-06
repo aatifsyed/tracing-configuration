@@ -45,6 +45,7 @@ macro_rules! serde_from_str {
 /// Configuration for a totally dynamic subscriber.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Default, Serialize, Deserialize)]
 #[cfg_attr(feature = "schemars1", derive(JsonSchema))]
+#[serde(deny_unknown_fields, rename_all = "kebab-case")]
 pub struct Subscriber {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub format: Option<Format>,
@@ -56,6 +57,7 @@ pub struct Subscriber {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Default, Serialize, Deserialize)]
 #[cfg_attr(feature = "schemars1", derive(JsonSchema))]
+#[serde(deny_unknown_fields, rename_all = "kebab-case")]
 pub struct Filter {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub regex: Option<bool>,
@@ -212,6 +214,7 @@ impl Subscriber {
 /// Config for formatters.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Default, Serialize, Deserialize)]
 #[cfg_attr(feature = "schemars1", derive(JsonSchema))]
+#[serde(deny_unknown_fields, rename_all = "kebab-case")]
 pub struct Format {
     /// See [`tracing_subscriber::fmt::SubscriberBuilder::with_ansi`].
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -295,7 +298,7 @@ impl SerializeAs<FmtSpan> for VecFmtSpan {
 }
 
 #[derive(Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
+#[serde(deny_unknown_fields, rename_all = "kebab-case")]
 #[cfg_attr(feature = "schemars1", derive(JsonSchema))]
 enum FmtSpanItem {
     New,
@@ -310,7 +313,7 @@ enum FmtSpanItem {
 /// The specific output format.
 #[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Default, Serialize, Deserialize)]
 #[cfg_attr(feature = "schemars1", derive(JsonSchema))]
-#[serde(rename_all = "kebab-case")]
+#[serde(deny_unknown_fields, rename_all = "kebab-case")]
 pub enum Formatter {
     /// See [`tracing_subscriber::fmt::format::Full`].
     #[default]
@@ -358,6 +361,7 @@ impl ValueEnum for Formatter {
 
 #[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Default, Serialize, Deserialize)]
 #[cfg_attr(feature = "schemars1", derive(JsonSchema))]
+#[serde(deny_unknown_fields, rename_all = "kebab-case")]
 pub struct Json {
     /// See [`tracing_subscriber::fmt::format::Json::flatten_event`].
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -373,7 +377,7 @@ pub struct Json {
 /// Which timer implementation to use.
 #[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Default, Serialize, Deserialize)]
 #[cfg_attr(feature = "schemars1", derive(JsonSchema))]
-#[serde(rename_all = "kebab-case")]
+#[serde(deny_unknown_fields, rename_all = "kebab-case")]
 pub enum Timer {
     /// See [`tracing_subscriber::fmt::SubscriberBuilder::without_time`].
     None,
@@ -443,7 +447,7 @@ impl ValueEnum for Timer {
 /// Write to a [`File`](std::fs::File).
 #[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Default, Serialize, Deserialize)]
 #[cfg_attr(feature = "schemars1", derive(JsonSchema))]
-#[serde(rename_all = "kebab-case")]
+#[serde(deny_unknown_fields, rename_all = "kebab-case")]
 pub struct File {
     pub path: PathBuf,
     pub mode: FileOpenMode,
@@ -454,7 +458,7 @@ pub struct File {
 
 #[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Default, Serialize, Deserialize)]
 #[cfg_attr(feature = "schemars1", derive(JsonSchema))]
-#[serde(rename_all = "kebab-case")]
+#[serde(deny_unknown_fields, rename_all = "kebab-case")]
 /// Use a [`tracing_appender::rolling::RollingFileAppender`].
 pub struct Rolling {
     pub directory: PathBuf,
@@ -467,7 +471,7 @@ pub struct Rolling {
 /// Which writer to use.
 #[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Default, Serialize, Deserialize)]
 #[cfg_attr(feature = "schemars1", derive(JsonSchema))]
-#[serde(rename_all = "kebab-case")]
+#[serde(deny_unknown_fields, rename_all = "kebab-case")]
 pub enum Writer {
     /// No writer.
     Null,
@@ -558,7 +562,7 @@ impl ValueParserFactory for Writer {
 /// See [`tracing_appender::rolling::Rotation`].
 #[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Default, Serialize, Deserialize)]
 #[cfg_attr(feature = "schemars1", derive(JsonSchema))]
-#[serde(rename_all = "kebab-case")]
+#[serde(deny_unknown_fields, rename_all = "kebab-case")]
 #[cfg_attr(feature = "clap4", derive(ValueEnum))]
 pub enum Rotation {
     Minutely,
@@ -573,6 +577,7 @@ serde_from_str!(Rotation);
 /// Config for [`tracing_appender::rolling::RollingFileAppender`].
 #[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Default, Serialize, Deserialize)]
 #[cfg_attr(feature = "schemars1", derive(JsonSchema))]
+#[serde(deny_unknown_fields, rename_all = "kebab-case")]
 pub struct Roll {
     /// See [`tracing_appender::rolling::Builder::max_log_files`].
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -593,7 +598,7 @@ pub struct Roll {
 /// See [`tracing_appender::non_blocking::NonBlockingBuilder::lossy`].
 #[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[cfg_attr(feature = "schemars1", derive(JsonSchema))]
-#[serde(rename_all = "kebab-case")]
+#[serde(deny_unknown_fields, rename_all = "kebab-case")]
 #[cfg_attr(feature = "clap4", derive(ValueEnum))]
 pub enum BackpressureBehaviour {
     Drop,
@@ -605,7 +610,7 @@ serde_from_str!(BackpressureBehaviour);
 /// How to treat a newly created log file in [`Writer::File`].
 #[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Default, Serialize, Deserialize)]
 #[cfg_attr(feature = "schemars1", derive(JsonSchema))]
-#[serde(rename_all = "kebab-case")]
+#[serde(deny_unknown_fields, rename_all = "kebab-case")]
 #[cfg_attr(feature = "clap4", derive(ValueEnum))]
 pub enum FileOpenMode {
     #[default]
@@ -618,7 +623,7 @@ serde_from_str!(FileOpenMode);
 /// Configuration for [`tracing_appender::non_blocking::NonBlocking`].
 #[derive(Debug, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, Default, Serialize, Deserialize)]
 #[cfg_attr(feature = "schemars1", derive(JsonSchema))]
-#[serde(rename_all = "kebab-case")]
+#[serde(deny_unknown_fields, rename_all = "kebab-case")]
 pub struct NonBlocking {
     /// See [`tracing_appender::non_blocking::NonBlockingBuilder::buffered_lines_limit`].
     #[serde(skip_serializing_if = "Option::is_none")]

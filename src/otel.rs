@@ -8,8 +8,9 @@ use opentelemetry::{
     metrics::MeterProvider as _, trace::TracerProvider as _, InstrumentationScopeBuilder, KeyValue,
 };
 use opentelemetry_otlp::{
-    Compression, ExporterBuildError, HasExportConfig, HasHttpConfig, MetricExporterBuilder,
-    Protocol, SpanExporterBuilder, WithExportConfig, WithHttpConfig,
+    Compression, ExporterBuildError, HasExportConfig, HasHttpConfig, HasTonicConfig,
+    MetricExporterBuilder, Protocol, SpanExporterBuilder, WithExportConfig, WithHttpConfig,
+    WithTonicConfig as _,
 };
 use opentelemetry_sdk::{
     metrics::{MeterProviderBuilder, PeriodicReader, PeriodicReaderBuilder},
@@ -28,7 +29,7 @@ use crate::ParseError;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[cfg_attr(feature = "schemars1", derive(JsonSchema))]
-#[serde(rename_all = "kebab-case")]
+#[serde(deny_unknown_fields, rename_all = "kebab-case")]
 pub struct Tracer {
     #[serde(default)]
     pub scope: InstrumentationScope,
@@ -66,7 +67,7 @@ impl Tracer {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[cfg_attr(feature = "schemars1", derive(JsonSchema))]
-#[serde(rename_all = "kebab-case")]
+#[serde(deny_unknown_fields, rename_all = "kebab-case")]
 pub struct InstrumentationScope {
     #[serde(default)]
     pub name: String,
@@ -93,7 +94,7 @@ impl InstrumentationScope {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[cfg_attr(feature = "schemars1", derive(JsonSchema))]
-#[serde(rename_all = "kebab-case")]
+#[serde(deny_unknown_fields, rename_all = "kebab-case")]
 pub struct TracerProvider {
     #[serde(default)]
     pub resource: Resource,
@@ -145,16 +146,21 @@ impl TracerProvider {
                 |acc,
                  SpanExporter {
                      batch,
-                     http,
+                     transport,
                      export,
                  }| {
-                    export
-                        .apply(http.apply(SpanExporterBuilder::new().with_http()))
-                        .build()
-                        .map(|exporter| match batch.unwrap_or(true) {
-                            true => acc.with_batch_exporter(exporter),
-                            false => acc.with_simple_exporter(exporter),
-                        })
+                    match transport {
+                        Transport::Http(http_config) => export
+                            .apply(http_config.apply(SpanExporterBuilder::new().with_http()))
+                            .build(),
+                        Transport::Grpc(tonic_config) => export
+                            .apply(tonic_config.apply(SpanExporterBuilder::new().with_tonic()))
+                            .build(),
+                    }
+                    .map(|exporter| match batch.unwrap_or(true) {
+                        true => acc.with_batch_exporter(exporter),
+                        false => acc.with_simple_exporter(exporter),
+                    })
                 },
             )?
             .with_sampler(match sampler {
@@ -167,7 +173,7 @@ impl TracerProvider {
 
 #[derive(Deserialize, Serialize, Clone, Debug, PartialEq, PartialOrd, Default)]
 #[cfg_attr(feature = "schemars1", derive(JsonSchema))]
-#[serde(rename_all = "kebab-case")]
+#[serde(deny_unknown_fields, rename_all = "kebab-case")]
 pub struct Resource {
     #[serde(default)]
     pub attributes: BTreeMap<String, Value>,
@@ -240,7 +246,7 @@ impl From<Array> for opentelemetry::Array {
 
 #[derive(Debug, Clone, PartialEq, PartialOrd, Serialize, Deserialize, Default)]
 #[cfg_attr(feature = "schemars1", derive(JsonSchema))]
-#[serde(rename_all = "kebab-case")]
+#[serde(deny_unknown_fields, rename_all = "kebab-case")]
 pub enum Sampler {
     #[default]
     Always,
@@ -266,20 +272,27 @@ impl FromStr for Sampler {
     }
 }
 
-#[derive(Deserialize, Serialize, Clone, Debug, Eq, PartialEq, Default)]
+#[derive(Deserialize, Serialize, Clone, Debug, Eq, PartialEq)]
 #[cfg_attr(feature = "schemars1", derive(JsonSchema))]
-#[serde(rename_all = "kebab-case")]
+#[serde(deny_unknown_fields, rename_all = "kebab-case")]
 pub struct SpanExporter {
-    #[serde(default)]
-    pub http: HttpConfig,
+    pub transport: Transport,
     #[serde(default)]
     pub export: ExportConfig,
     pub batch: Option<bool>,
 }
 
+#[derive(Deserialize, Serialize, Clone, Debug, Eq, PartialEq)]
+#[cfg_attr(feature = "schemars1", derive(JsonSchema))]
+#[serde(deny_unknown_fields, rename_all = "kebab-case")]
+pub enum Transport {
+    Http(HttpConfig),
+    Grpc(TonicConfig),
+}
+
 #[derive(Deserialize, Serialize, Clone, Debug, Eq, PartialEq, Default)]
 #[cfg_attr(feature = "schemars1", derive(JsonSchema))]
-#[serde(rename_all = "kebab-case")]
+#[serde(deny_unknown_fields, rename_all = "kebab-case")]
 pub struct HttpConfig {
     #[serde(default, with = "As::<Option<FromInto<_Compression>>>")]
     #[cfg_attr(feature = "schemars1", schemars(with = "Option<_Compression>"))]
@@ -304,7 +317,26 @@ impl HttpConfig {
 
 #[derive(Deserialize, Serialize, Clone, Debug, Eq, PartialEq, Default)]
 #[cfg_attr(feature = "schemars1", derive(JsonSchema))]
-#[serde(rename_all = "kebab-case")]
+#[serde(deny_unknown_fields, rename_all = "kebab-case")]
+pub struct TonicConfig {
+    #[serde(default, with = "As::<Option<FromInto<_Compression>>>")]
+    #[cfg_attr(feature = "schemars1", schemars(with = "Option<_Compression>"))]
+    pub compression: Option<Compression>,
+}
+
+impl TonicConfig {
+    pub fn apply<T: HasTonicConfig>(self, to: T) -> T {
+        let Self { compression } = self;
+        match compression {
+            Some(it) => to.with_compression(it),
+            None => to,
+        }
+    }
+}
+
+#[derive(Deserialize, Serialize, Clone, Debug, Eq, PartialEq, Default)]
+#[cfg_attr(feature = "schemars1", derive(JsonSchema))]
+#[serde(deny_unknown_fields, rename_all = "kebab-case")]
 pub struct ExportConfig {
     pub endpoint: Option<String>,
     pub timeout: Option<Duration>,
@@ -332,7 +364,7 @@ impl ExportConfig {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[cfg_attr(feature = "schemars1", derive(JsonSchema))]
-#[serde(rename_all = "kebab-case")]
+#[serde(deny_unknown_fields, rename_all = "kebab-case")]
 pub struct Meter {
     #[serde(default)]
     pub scope: InstrumentationScope,
@@ -351,7 +383,7 @@ impl Meter {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[cfg_attr(feature = "schemars1", derive(JsonSchema))]
-#[serde(rename_all = "kebab-case")]
+#[serde(deny_unknown_fields, rename_all = "kebab-case")]
 pub struct MetricExporter {
     #[serde(default)]
     pub http: HttpConfig,
@@ -388,7 +420,7 @@ impl MetricExporter {
 
 #[derive(Deserialize, Serialize, Clone, Debug, PartialEq, Default)]
 #[cfg_attr(feature = "schemars1", derive(JsonSchema))]
-#[serde(rename_all = "kebab-case")]
+#[serde(deny_unknown_fields, rename_all = "kebab-case")]
 pub struct MeterProvider {
     #[serde(default)]
     pub exporters: Vec<MetricExporter>,
@@ -419,7 +451,7 @@ impl MeterProvider {
 
 #[derive(Deserialize, Serialize, Clone, Copy, Debug, Eq, PartialEq, Hash, PartialOrd, Ord)]
 #[cfg_attr(feature = "schemars1", derive(JsonSchema))]
-#[serde(rename_all = "kebab-case")]
+#[serde(deny_unknown_fields, rename_all = "kebab-case")]
 pub enum Temporality {
     Cumulative,
     Delta,
@@ -479,7 +511,7 @@ conv_enum! {
 #[convert(Protocol)]
 #[derive(Deserialize, Serialize, Clone, Copy, Debug, Eq, PartialEq, Hash, PartialOrd, Ord)]
 #[cfg_attr(feature = "schemars1", derive(JsonSchema))]
-#[serde(rename_all = "kebab-case")]
+#[serde(deny_unknown_fields, rename_all = "kebab-case")]
 enum _Protocol {
     Grpc,
     HttpBinary,
@@ -490,7 +522,7 @@ conv_enum! {
 #[convert(Compression)]
 #[derive(Deserialize, Serialize, Clone, Copy, Debug, Eq, PartialEq, Hash, PartialOrd, Ord)]
 #[cfg_attr(feature = "schemars1", derive(JsonSchema))]
-#[serde(rename_all = "kebab-case")]
+#[serde(deny_unknown_fields, rename_all = "kebab-case")]
 enum _Compression {
     Gzip,
     Zstd,
